@@ -76,6 +76,35 @@ scripts/start-backend-docker.sh
 scripts/start-frontend.sh
 ```
 
+macOS 一键检测并启动：
+
+```bash
+chmod +x scripts/start-mac.sh
+scripts/start-mac.sh
+```
+
+如果 macOS 本机 MySQL 密码不是默认的 `root`：
+
+```bash
+scripts/start-mac.sh --mysql-user root --mysql-password 你的密码
+```
+
+详细说明见 `scripts/README-mac.md`。
+
+Windows 一键检测并启动：
+
+```powershell
+.\scripts\start-windows.bat
+```
+
+如果 Windows 本机 MySQL 密码不是默认的 `root`：
+
+```powershell
+.\scripts\start-windows.bat -MySqlUser root -MySqlPassword 你的密码
+```
+
+详细说明见 `scripts/README-windows.md`。
+
 访问地址：
 
 - 患者端：`http://localhost:5173`
