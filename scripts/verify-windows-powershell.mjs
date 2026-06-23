@@ -21,6 +21,12 @@ for (const fileName of fs.readdirSync(scriptsDir).filter((name) => name.endsWith
         }
       }
     }
+
+    if (/\(&\s+java\s+-version\s+2>&1/.test(line)) {
+      errors.push(
+        `${fileName}:${index + 1}: Windows PowerShell 会把 java -version 的 stderr 当作 NativeCommandError，请通过 cmd 合并输出`,
+      )
+    }
   })
 }
 

@@ -172,7 +172,9 @@ $nodePath = Require-Command "node" "Install Node.js 18 or newer and add node.exe
 $npmPath = Require-Command "npm" "Install Node.js 18 or newer and add npm.cmd to PATH."
 $mysqlPath = Require-Command "mysql" "Install MySQL Client and add mysql.exe to PATH."
 
-$javaLine = (& java -version 2>&1 | Select-Object -First 1) -join ""
+# java -version writes normal version output to stderr. Merge it in cmd.exe first
+# so Windows PowerShell 5.1 does not turn the line into NativeCommandError.
+$javaLine = (& cmd.exe /d /c "java -version 2>&1" | Select-Object -First 1) -join ""
 $javaMajor = Get-MajorVersion $javaLine
 if ($javaMajor -lt 17) {
     Write-FailAndExit "Java 17 or newer is required. Current: $javaLine"
