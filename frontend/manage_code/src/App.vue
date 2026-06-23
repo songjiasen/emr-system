@@ -37,7 +37,7 @@
           :key="item.name"
           :class="{ active: activeTab === item.name }"
           type="button"
-          @click="activeTab = item.name"
+          @click="goToAdminTab(item.name)"
         >
           {{ item.label }}
         </button>
@@ -58,7 +58,7 @@
         </div>
       </header>
 
-      <el-tabs v-model="activeTab" class="workspace-tabs">
+      <el-tabs v-model="activeTab" class="workspace-tabs" @tab-change="goToAdminTab">
         <el-tab-pane label="仪表盘" name="dashboard">
           <section class="dashboard-layout">
             <div class="overview-grid">
@@ -960,7 +960,8 @@
 </template>
 
 <script setup>
-import { onBeforeUnmount, onMounted, reactive, ref } from 'vue';
+import { onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
 import { ElMessage } from 'element-plus';
 import { login, logout, validateToken } from './api/auth';
 import { fetchAppointments, fetchAppointmentDetail, cancelAppointment } from './api/appointment';
@@ -976,20 +977,23 @@ import { ocrMedicalRecord, recommendMedicine, auditPrescription, smartSearch } f
 import { AUTH_EVENT_NAME, clearAuthState, getStoredToken, readStoredSession, saveAuthState } from './utils/session';
 
 const navItems = [
-  { name: 'dashboard', label: '仪表盘' },
-  { name: 'appointments', label: '预约管理' },
-  { name: 'users', label: '用户管理' },
-  { name: 'records', label: '就诊病历' },
-  { name: 'clinical', label: '诊疗管理' },
-  { name: 'workflow', label: '审核归档' },
-  { name: 'billing', label: '费用系统' },
-  { name: 'system', label: '系统内容' },
-  { name: 'ai', label: 'AI 智能' }
+  { name: 'dashboard', label: '仪表盘', path: '/dashboard' },
+  { name: 'appointments', label: '预约管理', path: '/appointments' },
+  { name: 'users', label: '用户管理', path: '/users' },
+  { name: 'records', label: '就诊病历', path: '/records' },
+  { name: 'clinical', label: '诊疗管理', path: '/clinical' },
+  { name: 'workflow', label: '审核归档', path: '/workflow' },
+  { name: 'billing', label: '费用系统', path: '/billing' },
+  { name: 'system', label: '系统内容', path: '/system' },
+  { name: 'ai', label: 'AI 智能', path: '/ai' }
 ];
 
+const route = useRoute();
+const router = useRouter();
 const activeTab = ref('dashboard');
 const adminSession = ref(createEmptyAdminSession());
 const hasAdminToken = ref(Boolean(getStoredToken()));
+const adminSessionReady = ref(!hasAdminToken.value);
 const userType = ref('doctors');
 const selectedAppointment = ref(null);
 const selectedDepartment = ref(null);
@@ -1267,6 +1271,23 @@ function statusFormatter(_row, _column, value) {
   return statusText(value);
 }
 
+function resolveAdminTab(tabName) {
+  return navItems.some((item) => item.name === tabName) ? tabName : 'dashboard';
+}
+
+function findAdminNavItem(tabName) {
+  const safeTab = resolveAdminTab(tabName);
+  return navItems.find((item) => item.name === safeTab) || navItems[0];
+}
+
+function goToAdminTab(tabName) {
+  const item = findAdminNavItem(tabName);
+  if (!item || route.name === item.name) {
+    return;
+  }
+  router.push({ name: item.name });
+}
+
 function showError(error) {
   const status = error?.response?.status;
   if (status === 401 || status === 403) {
@@ -1282,8 +1303,7 @@ async function submitAdminLogin() {
   try {
     const data = unwrap(await login(adminLoginForm.value));
     persistAdminSession(data);
-    activeTab.value = 'dashboard';
-    loadAdminWorkspaceData();
+    loadAdminRouteData(activeTab.value);
     ElMessage.success('后台登录成功');
   } catch (error) {
     showError(error);
@@ -1352,6 +1372,7 @@ function clearAdminWorkspace() {
 function resetAdminAuth({ resetTab = true } = {}) {
   clearAuthState();
   hasAdminToken.value = false;
+  adminSessionReady.value = true;
   adminSession.value = createEmptyAdminSession();
   clearAdminWorkspace();
   if (resetTab) {
@@ -1382,7 +1403,6 @@ async function verifyAdminSession() {
   try {
     const data = unwrap(await validateToken());
     persistAdminSession(data);
-    activeTab.value = 'dashboard';
     return true;
   } catch (error) {
     return false;
@@ -1473,6 +1493,7 @@ async function logoutAdminAction() {
     // 退出接口失败时仍按本地退出处理，避免用户被卡在失效会话里。
   }
   resetAdminAuth();
+  goToAdminTab('dashboard');
   ElMessage.success('已退出登录');
 }
 
@@ -2579,6 +2600,86 @@ function loadAdminWorkspaceData() {
 }
 
 /**
+ * 根据后台当前路由加载页面数据。
+ * 菜单点击、浏览器前进后退和刷新恢复都走这里，避免每次进入都批量请求所有服务。
+ */
+function loadAdminRouteData(tabName) {
+  if (!hasAdminToken.value) {
+    return;
+  }
+
+  const tab = resolveAdminTab(tabName);
+  if (tab === 'dashboard') {
+    loadAppointments();
+    loadDepartments();
+    loadUsers();
+    loadRecords();
+    loadWorkflowTasks();
+    loadArchiveApplications();
+    loadFees();
+    return;
+  }
+
+  if (tab === 'appointments') {
+    loadAppointments();
+    return;
+  }
+
+  if (tab === 'users') {
+    loadDepartments();
+    loadUsers();
+    return;
+  }
+
+  if (tab === 'records') {
+    loadRecords();
+    loadTriageRecords();
+    loadAdmissions();
+    loadDischarges();
+    loadTemplates();
+    return;
+  }
+
+  if (tab === 'clinical') {
+    loadOrders();
+    loadPrescriptions();
+    loadTestRequests();
+    return;
+  }
+
+  if (tab === 'workflow') {
+    loadWorkflowTasks();
+    loadWorkflowAuditRecords();
+    loadArchiveApplications();
+    loadArchives();
+    return;
+  }
+
+  if (tab === 'billing') {
+    loadFees();
+    return;
+  }
+
+  if (tab === 'system') {
+    loadNews();
+    loadMessages();
+    loadCarousels();
+    loadMenuAction({ silent: true });
+    loadSyslogs();
+  }
+}
+
+function syncAdminRouteState(routeName) {
+  const nextTab = resolveAdminTab(routeName);
+  if (activeTab.value !== nextTab) {
+    activeTab.value = nextTab;
+  }
+  if (adminSessionReady.value) {
+    loadAdminRouteData(nextTab);
+  }
+}
+
+/**
  * 处理后台统一认证事件。
  * 401 代表登录态失效，需要清空会话；403 只提示当前角色无权访问，保留现有登录态。
  */
@@ -2586,6 +2687,7 @@ function handleAdminAuthEvent(event) {
   const status = event?.detail?.status;
   if (status === 401) {
     resetAdminAuth();
+    goToAdminTab('dashboard');
     ElMessage.warning(event?.detail?.message || '登录状态已过期，请重新登录');
     return;
   }
@@ -2597,10 +2699,18 @@ function handleAdminAuthEvent(event) {
 onMounted(async () => {
   window.addEventListener(AUTH_EVENT_NAME, handleAdminAuthEvent);
   restoreAdminSession();
-  if (await verifyAdminSession()) {
-    loadAdminWorkspaceData();
-  }
+  await verifyAdminSession();
+  adminSessionReady.value = true;
+  syncAdminRouteState(route.name);
 });
+
+watch(
+  () => route.name,
+  (routeName) => {
+    syncAdminRouteState(routeName);
+  },
+  { immediate: true }
+);
 
 onBeforeUnmount(() => {
   window.removeEventListener(AUTH_EVENT_NAME, handleAdminAuthEvent);
@@ -2888,14 +2998,127 @@ h3 {
   white-space: pre-wrap;
 }
 
-:deep(.el-button--primary) {
-  background: #0d7dcc;
-  border-color: #0d7dcc;
+:deep(.el-button--primary:not(.is-link)) {
+  --el-button-bg-color: #0b74b8;
+  --el-button-border-color: #0b74b8;
+  --el-button-text-color: #ffffff;
+  --el-button-hover-bg-color: #075f99;
+  --el-button-hover-border-color: #075f99;
+  --el-button-hover-text-color: #ffffff;
+  --el-button-active-bg-color: #064f7f;
+  --el-button-active-border-color: #064f7f;
+  --el-button-active-text-color: #ffffff;
+  background-color: #0b74b8;
+  border-color: #0b74b8;
+  color: #ffffff;
+  font-weight: 600;
 }
 
-:deep(.el-button--danger) {
-  background: #f05252;
-  border-color: #f05252;
+:deep(.el-button--primary:not(.is-link):hover) {
+  background-color: #075f99;
+  border-color: #075f99;
+  color: #ffffff;
+}
+
+:deep(.el-button--danger:not(.is-link):not(.is-plain)) {
+  --el-button-bg-color: #d12d2d;
+  --el-button-border-color: #d12d2d;
+  --el-button-text-color: #ffffff;
+  --el-button-hover-bg-color: #b91c1c;
+  --el-button-hover-border-color: #b91c1c;
+  --el-button-hover-text-color: #ffffff;
+  --el-button-active-bg-color: #991b1b;
+  --el-button-active-border-color: #991b1b;
+  --el-button-active-text-color: #ffffff;
+  background-color: #d12d2d;
+  border-color: #d12d2d;
+  color: #ffffff;
+  font-weight: 600;
+}
+
+:deep(.el-button--danger:not(.is-link):not(.is-plain):hover) {
+  background-color: #b91c1c;
+  border-color: #b91c1c;
+  color: #ffffff;
+}
+
+:deep(.el-button--danger.is-plain:not(.is-link)) {
+  --el-button-bg-color: #fff1f1;
+  --el-button-border-color: #ef9a9a;
+  --el-button-text-color: #b42318;
+  --el-button-hover-bg-color: #d12d2d;
+  --el-button-hover-border-color: #d12d2d;
+  --el-button-hover-text-color: #ffffff;
+  --el-button-active-bg-color: #b91c1c;
+  --el-button-active-border-color: #b91c1c;
+  background-color: #fff1f1;
+  border-color: #ef9a9a;
+  color: #b42318;
+}
+
+:deep(.el-button--danger.is-plain:not(.is-link):hover) {
+  background-color: #d12d2d;
+  border-color: #d12d2d;
+  color: #ffffff;
+}
+
+:deep(.el-button:not(.el-button--primary):not(.el-button--danger):not(.is-link)) {
+  --el-button-bg-color: #ffffff;
+  --el-button-border-color: #cbd5e1;
+  --el-button-text-color: #334155;
+  --el-button-hover-bg-color: #f0f7ff;
+  --el-button-hover-border-color: #5aa6d9;
+  --el-button-hover-text-color: #075985;
+  background-color: #ffffff;
+  border-color: #cbd5e1;
+  color: #334155;
+  font-weight: 600;
+}
+
+:deep(.el-button:not(.el-button--primary):not(.el-button--danger):not(.is-link):hover) {
+  background-color: #f0f7ff;
+  border-color: #5aa6d9;
+  color: #075985;
+}
+
+:deep(.el-button.is-link) {
+  --el-button-bg-color: transparent;
+  --el-button-border-color: transparent;
+  --el-button-hover-bg-color: transparent;
+  --el-button-hover-border-color: transparent;
+  background-color: transparent;
+  border-color: transparent;
+  font-weight: 600;
+}
+
+:deep(.el-button.is-link.el-button--primary) {
+  --el-button-text-color: #075985;
+  --el-button-hover-text-color: #0c4a6e;
+  color: #075985;
+}
+
+:deep(.el-button.is-link.el-button--primary:hover) {
+  background-color: #eaf5ff;
+  color: #0c4a6e;
+}
+
+:deep(.el-button.is-link.el-button--danger) {
+  --el-button-text-color: #b42318;
+  --el-button-hover-text-color: #8f1d14;
+  background-color: transparent;
+  color: #b42318;
+}
+
+:deep(.el-button.is-link.el-button--danger:hover) {
+  background-color: #fff1f1;
+  color: #8f1d14;
+}
+
+:deep(.el-button.is-disabled),
+:deep(.el-button.is-disabled:hover) {
+  background-color: #eef2f5;
+  border-color: #d9e1e8;
+  color: #7a8790;
 }
 
 :deep(.el-table th.el-table__cell) {

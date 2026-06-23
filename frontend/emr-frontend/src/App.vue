@@ -61,7 +61,7 @@
           :key="item.name"
           :class="{ active: activeTab === item.name }"
           type="button"
-          @click="activeTab = item.name"
+          @click="goToPatientTab(item.name)"
         >
           {{ item.label }}
         </button>
@@ -79,7 +79,7 @@
       <p>{{ patientPageSubtitle }}</p>
     </section>
 
-    <el-tabs v-model="activeTab" class="workspace-tabs">
+    <el-tabs v-model="activeTab" class="workspace-tabs" @tab-change="goToPatientTab">
       <el-tab-pane label="首页" name="home">
         <section class="home-layout">
           <section class="two-column">
@@ -189,13 +189,13 @@
                   <el-option
                     v-for="doctor in doctors"
                     :key="doctor.id"
-                    :label="`${doctor.name} - ${doctor.departmentName}`"
+                    :label="doctorOptionLabel(doctor)"
                     :value="doctor.id"
                   />
                 </el-select>
               </el-form-item>
               <el-form-item label="预约时间">
-                <el-input v-model="appointmentForm.appointmentTime" placeholder="2026-06-23 09:00" />
+                <el-input v-model="appointmentForm.appointmentTime" placeholder="2026-06-23 09:00:00" />
               </el-form-item>
               <el-form-item label="备注">
                 <el-input v-model="appointmentForm.remark" type="textarea" :rows="3" />
@@ -448,7 +448,8 @@
 </template>
 
 <script setup>
-import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue';
+import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
 import { ElMessage } from 'element-plus';
 import { changePassword, login, logout, registerPatient, validateToken } from './api/auth';
 import { fetchDoctors } from './api/doctor';
@@ -460,10 +461,13 @@ import { createMessage, fetchCarousels, fetchMessages, fetchNews } from './api/s
 import { recommendMedicine, smartSearch } from './api/ai';
 import { AUTH_EVENT_NAME, clearAuthState, getStoredToken, readStoredSession, saveAuthState } from './utils/session';
 
+const route = useRoute();
+const router = useRouter();
 const activeTab = ref('home');
 const patientAuthMode = ref('login');
 const session = ref(createEmptyPatientSession());
 const hasPatientToken = ref(Boolean(getStoredToken()));
+const patientSessionReady = ref(!hasPatientToken.value);
 const doctors = ref([]);
 const appointments = ref([]);
 const records = ref([]);
@@ -498,7 +502,7 @@ const appointmentForm = ref({
   doctorName: '王医生',
   departmentId: 1,
   departmentName: '心内科',
-  appointmentTime: '2026-06-23 09:00',
+  appointmentTime: '2026-06-23 09:00:00',
   remark: '复诊咨询'
 });
 const messageForm = ref({
@@ -514,13 +518,13 @@ const patientDialogs = reactive({
   password: false
 });
 const patientNavItems = [
-  { name: 'home', label: '首页' },
-  { name: 'appointment', label: '预约挂号' },
-  { name: 'record', label: '就诊记录' },
-  { name: 'clinical', label: '处方检查' },
-  { name: 'content', label: '健康资讯' },
-  { name: 'profile', label: '个人中心' },
-  { name: 'ai', label: '智能检索' }
+  { name: 'home', label: '首页', path: '/home' },
+  { name: 'appointment', label: '预约挂号', path: '/appointment' },
+  { name: 'record', label: '就诊记录', path: '/record' },
+  { name: 'clinical', label: '处方检查', path: '/clinical' },
+  { name: 'content', label: '健康资讯', path: '/content' },
+  { name: 'profile', label: '个人中心', path: '/profile' },
+  { name: 'ai', label: '智能检索', path: '/ai' }
 ];
 
 /**
@@ -554,6 +558,23 @@ const patientPageMeta = {
 const patientPageTitle = computed(() => patientPageMeta[activeTab.value]?.[0] || '安心医疗');
 const patientPageSubtitle = computed(() => patientPageMeta[activeTab.value]?.[1] || '为您提供贴心医疗服务');
 const patientAvatarText = computed(() => String(session.value.name || session.value.username || '患').slice(0, 1));
+
+function resolvePatientTab(tabName) {
+  return patientNavItems.some((item) => item.name === tabName) ? tabName : 'home';
+}
+
+function findPatientNavItem(tabName) {
+  const safeTab = resolvePatientTab(tabName);
+  return patientNavItems.find((item) => item.name === safeTab) || patientNavItems[0];
+}
+
+function goToPatientTab(tabName) {
+  const item = findPatientNavItem(tabName);
+  if (!item || route.name === item.name) {
+    return;
+  }
+  router.push({ name: item.name });
+}
 
 function unwrap(response) {
   const body = response?.data;
@@ -603,6 +624,12 @@ function statusFormatter(_row, _column, value) {
   return statusText(value);
 }
 
+function doctorOptionLabel(doctor) {
+  const name = doctor?.name || doctor?.username || '未命名医生';
+  const departmentName = doctor?.departmentName || '未分配科室';
+  return `${name} - ${departmentName}`;
+}
+
 function showError(error) {
   const status = error?.response?.status;
   if (status === 401 || status === 403) {
@@ -618,8 +645,7 @@ async function submitLogin() {
   try {
     const data = unwrap(await login(loginForm.value));
     persistPatientSession(data);
-    activeTab.value = 'home';
-    loadProtectedPatientData();
+    loadPatientRouteData(activeTab.value);
     ElMessage.success('登录成功');
   } catch (error) {
     showError(error);
@@ -700,6 +726,7 @@ function clearProtectedPatientData() {
 function resetPatientAuth({ resetTab = true } = {}) {
   clearAuthState();
   hasPatientToken.value = false;
+  patientSessionReady.value = true;
   applyPatientSession(createEmptyPatientSession());
   clearProtectedPatientData();
   if (resetTab) {
@@ -731,7 +758,6 @@ async function verifyPatientSession() {
   try {
     const data = unwrap(await validateToken());
     persistPatientSession(data);
-    activeTab.value = 'home';
     return true;
   } catch (error) {
     return false;
@@ -751,6 +777,7 @@ async function logoutPatientAction() {
     // 退出失败时继续按本地退出处理，避免保留一份已经不可控的旧登录态。
   }
   resetPatientAuth();
+  goToPatientTab('home');
   ElMessage.success('已退出登录');
 }
 
@@ -768,9 +795,17 @@ function syncDoctor(doctorId) {
   if (!doctor) {
     return;
   }
-  appointmentForm.value.doctorName = doctor.name;
+  appointmentForm.value.doctorName = doctor.name || doctor.username || '未命名医生';
   appointmentForm.value.departmentId = doctor.departmentId;
-  appointmentForm.value.departmentName = doctor.departmentName;
+  appointmentForm.value.departmentName = doctor.departmentName || '未分配科室';
+}
+
+function normalizeAppointmentTime(value) {
+  const text = String(value || '').trim().replace('T', ' ');
+  if (/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/.test(text)) {
+    return `${text}:00`;
+  }
+  return text;
 }
 
 function selectNews(row) {
@@ -783,7 +818,14 @@ function selectNews(row) {
 async function submitAppointment() {
   try {
     Object.assign(appointmentForm.value, currentPatient.value);
-    await createAppointment(appointmentForm.value);
+    syncDoctor(appointmentForm.value.doctorId);
+    const payload = {
+      ...appointmentForm.value,
+      appointmentTime: normalizeAppointmentTime(appointmentForm.value.appointmentTime)
+    };
+    unwrap(await createAppointment(payload));
+    appointmentForm.value.appointmentTime = payload.appointmentTime;
+    pagers.appointments.page = 1;
     await loadAppointments();
     patientDialogs.appointment = false;
     ElMessage.success('预约已提交');
@@ -955,6 +997,57 @@ function loadProtectedPatientData() {
 }
 
 /**
+ * 根据当前路由加载患者端页面数据。
+ * 菜单点击和刷新恢复都走这里，避免回到首页后再一次性请求所有业务接口。
+ */
+function loadPatientRouteData(tabName) {
+  const tab = resolvePatientTab(tabName);
+  if (!hasPatientToken.value && tab !== 'home') {
+    return;
+  }
+
+  if (tab === 'home') {
+    loadDoctors();
+    loadNews();
+    loadCarousels();
+    return;
+  }
+
+  if (tab === 'appointment') {
+    loadDoctors();
+    loadAppointments();
+    return;
+  }
+
+  if (tab === 'record') {
+    loadRecords();
+    loadFees();
+    return;
+  }
+
+  if (tab === 'clinical') {
+    loadPrescriptions();
+    loadTestRequests();
+    return;
+  }
+
+  if (tab === 'content') {
+    loadNews();
+    loadMessages();
+  }
+}
+
+function syncPatientRouteState(routeName) {
+  const nextTab = resolvePatientTab(routeName);
+  if (activeTab.value !== nextTab) {
+    activeTab.value = nextTab;
+  }
+  if (patientSessionReady.value) {
+    loadPatientRouteData(nextTab);
+  }
+}
+
+/**
  * 处理患者端统一认证事件。
  * 401 需要清理登录态并提示重新登录；403 只提醒当前权限不足，保留已有会话。
  */
@@ -962,6 +1055,7 @@ function handlePatientAuthEvent(event) {
   const status = event?.detail?.status;
   if (status === 401) {
     resetPatientAuth();
+    goToPatientTab('home');
     ElMessage.warning(event?.detail?.message || '登录状态已过期，请重新登录');
     return;
   }
@@ -973,13 +1067,18 @@ function handlePatientAuthEvent(event) {
 onMounted(async () => {
   window.addEventListener(AUTH_EVENT_NAME, handlePatientAuthEvent);
   restorePatientSession();
-  loadDoctors();
-  loadNews();
-  loadCarousels();
-  if (await verifyPatientSession()) {
-    loadProtectedPatientData();
-  }
+  await verifyPatientSession();
+  patientSessionReady.value = true;
+  syncPatientRouteState(route.name);
 });
+
+watch(
+  () => route.name,
+  (routeName) => {
+    syncPatientRouteState(routeName);
+  },
+  { immediate: true }
+);
 
 onBeforeUnmount(() => {
   window.removeEventListener(AUTH_EVENT_NAME, handlePatientAuthEvent);
@@ -1290,14 +1389,127 @@ h2 {
   white-space: pre-wrap;
 }
 
-:deep(.el-button--primary) {
-  background: #63b878;
-  border-color: #63b878;
+:deep(.el-button--primary:not(.is-link)) {
+  --el-button-bg-color: #2f9e58;
+  --el-button-border-color: #2f9e58;
+  --el-button-text-color: #ffffff;
+  --el-button-hover-bg-color: #267e47;
+  --el-button-hover-border-color: #267e47;
+  --el-button-hover-text-color: #ffffff;
+  --el-button-active-bg-color: #206d3d;
+  --el-button-active-border-color: #206d3d;
+  --el-button-active-text-color: #ffffff;
+  background-color: #2f9e58;
+  border-color: #2f9e58;
+  color: #ffffff;
+  font-weight: 600;
 }
 
-:deep(.el-button--primary:hover) {
-  background: #55a969;
-  border-color: #55a969;
+:deep(.el-button--primary:not(.is-link):hover) {
+  background-color: #267e47;
+  border-color: #267e47;
+  color: #ffffff;
+}
+
+:deep(.el-button--danger:not(.is-link):not(.is-plain)) {
+  --el-button-bg-color: #d12d2d;
+  --el-button-border-color: #d12d2d;
+  --el-button-text-color: #ffffff;
+  --el-button-hover-bg-color: #b91c1c;
+  --el-button-hover-border-color: #b91c1c;
+  --el-button-hover-text-color: #ffffff;
+  --el-button-active-bg-color: #991b1b;
+  --el-button-active-border-color: #991b1b;
+  --el-button-active-text-color: #ffffff;
+  background-color: #d12d2d;
+  border-color: #d12d2d;
+  color: #ffffff;
+  font-weight: 600;
+}
+
+:deep(.el-button--danger:not(.is-link):not(.is-plain):hover) {
+  background-color: #b91c1c;
+  border-color: #b91c1c;
+  color: #ffffff;
+}
+
+:deep(.el-button--danger.is-plain:not(.is-link)) {
+  --el-button-bg-color: #fff1f1;
+  --el-button-border-color: #ef9a9a;
+  --el-button-text-color: #b42318;
+  --el-button-hover-bg-color: #d12d2d;
+  --el-button-hover-border-color: #d12d2d;
+  --el-button-hover-text-color: #ffffff;
+  --el-button-active-bg-color: #b91c1c;
+  --el-button-active-border-color: #b91c1c;
+  background-color: #fff1f1;
+  border-color: #ef9a9a;
+  color: #b42318;
+}
+
+:deep(.el-button--danger.is-plain:not(.is-link):hover) {
+  background-color: #d12d2d;
+  border-color: #d12d2d;
+  color: #ffffff;
+}
+
+:deep(.el-button:not(.el-button--primary):not(.el-button--danger):not(.is-link)) {
+  --el-button-bg-color: #ffffff;
+  --el-button-border-color: #cfd9d3;
+  --el-button-text-color: #334155;
+  --el-button-hover-bg-color: #f3faf5;
+  --el-button-hover-border-color: #76bd84;
+  --el-button-hover-text-color: #1f7a4d;
+  background-color: #ffffff;
+  border-color: #cfd9d3;
+  color: #334155;
+  font-weight: 600;
+}
+
+:deep(.el-button:not(.el-button--primary):not(.el-button--danger):not(.is-link):hover) {
+  background-color: #f3faf5;
+  border-color: #76bd84;
+  color: #1f7a4d;
+}
+
+:deep(.el-button.is-link) {
+  --el-button-bg-color: transparent;
+  --el-button-border-color: transparent;
+  --el-button-hover-bg-color: transparent;
+  --el-button-hover-border-color: transparent;
+  background-color: transparent;
+  border-color: transparent;
+  font-weight: 600;
+}
+
+:deep(.el-button.is-link.el-button--primary) {
+  --el-button-text-color: #1f7a4d;
+  --el-button-hover-text-color: #145c39;
+  color: #1f7a4d;
+}
+
+:deep(.el-button.is-link.el-button--primary:hover) {
+  background-color: #eef8f0;
+  color: #145c39;
+}
+
+:deep(.el-button.is-link.el-button--danger) {
+  --el-button-text-color: #b42318;
+  --el-button-hover-text-color: #8f1d14;
+  background-color: transparent;
+  color: #b42318;
+}
+
+:deep(.el-button.is-link.el-button--danger:hover) {
+  background-color: #fff1f1;
+  color: #8f1d14;
+}
+
+:deep(.el-button.is-disabled),
+:deep(.el-button.is-disabled:hover) {
+  background-color: #eef2f5;
+  border-color: #d9e1e8;
+  color: #7a8790;
 }
 
 :deep(.el-table) {
