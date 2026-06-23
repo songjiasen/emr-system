@@ -2,8 +2,9 @@
   <main v-if="!hasAdminToken" class="auth-page admin-auth-page">
     <section class="auth-card">
       <div class="auth-brand">
-        <p class="eyebrow">管理端</p>
-        <h1>EMR 后台</h1>
+        <span class="brand-icon">✚</span>
+        <h1>安心医疗系统</h1>
+        <p>请输入管理员账号进入后台管理</p>
       </div>
 
       <el-form label-position="top" :model="adminLoginForm">
@@ -29,7 +30,7 @@
 
   <main v-else class="admin-shell">
     <aside class="sidebar">
-      <h1>EMR 后台</h1>
+      <h1><span class="brand-icon">✚</span> 安心医疗系统</h1>
       <nav>
         <button
           v-for="item in navItems"
@@ -47,9 +48,10 @@
       <header class="workspace-head">
         <div>
           <p class="eyebrow">管理端</p>
-          <h2>电子病历管理系统</h2>
+          <h2>安心医疗系统</h2>
         </div>
         <div class="session">
+          <el-tag type="success">系统正常</el-tag>
           <span>{{ adminSession.username }}</span>
           <el-tag>{{ adminSession.roleCode }}</el-tag>
           <el-button v-if="hasAdminToken" link type="primary" @click="logoutAdminAction">退出</el-button>
@@ -183,28 +185,77 @@
         </el-tab-pane>
 
         <el-tab-pane label="用户科室" name="users">
-          <section class="three-column">
-            <div class="panel">
-              <h3>科室维护</h3>
-              <el-form label-position="top" :model="departmentForm">
+          <section class="single-column">
+            <div class="panel wide-panel">
+              <div class="panel-head">
+                <h3>用户与科室列表</h3>
+                <div class="button-row">
+                  <el-button type="primary" @click="openDepartmentDialog('create')">新增科室</el-button>
+                  <el-button :disabled="!selectedDepartment" @click="openDepartmentDialog('edit')">编辑科室</el-button>
+                  <el-button :disabled="!selectedDepartment" type="danger" plain @click="deleteDepartmentAction">删除科室</el-button>
+                  <el-button @click="loadDepartments">刷新科室</el-button>
+                  <el-button type="primary" @click="openUserDialog('create')">新增人员</el-button>
+                  <el-button :disabled="!selectedUser" @click="openUserDialog('edit')">编辑人员</el-button>
+                  <el-button :disabled="!selectedUser" type="danger" plain @click="deleteUserAction">删除人员</el-button>
+                </div>
+              </div>
+              <el-table :data="departments" height="170" @row-click="selectDepartment">
+                <el-table-column prop="name" label="科室" min-width="130" />
+                <el-table-column prop="sortNo" label="排序" width="80" />
+                <el-table-column prop="status" label="状态" width="90" :formatter="statusFormatter" />
+                <el-table-column label="操作" width="90">
+                  <template #default="{ row }">
+                    <el-button link type="primary" @click.stop="openDepartmentDialog('edit', row)">编辑</el-button>
+                  </template>
+                </el-table-column>
+              </el-table>
+              <el-pagination
+                class="table-pagination"
+                layout="prev, pager, next, total"
+                :current-page="pagers.departments.page"
+                :page-size="pagers.departments.limit"
+                :total="pagers.departments.total"
+                @current-change="(page) => changePage('departments', page, loadDepartments)"
+              />
+              <el-table :data="users" height="200" @row-click="selectUser">
+                <el-table-column prop="username" label="账号" min-width="130" />
+                <el-table-column prop="name" label="姓名" min-width="100" />
+                <el-table-column prop="userType" label="类型" width="110" />
+                <el-table-column prop="status" label="状态" width="90" :formatter="statusFormatter" />
+                <el-table-column label="操作" width="90">
+                  <template #default="{ row }">
+                    <el-button link type="primary" @click.stop="openUserDialog('edit', row)">编辑</el-button>
+                  </template>
+                </el-table-column>
+              </el-table>
+              <el-pagination
+                class="table-pagination"
+                layout="prev, pager, next, total"
+                :current-page="pagers.users.page"
+                :page-size="pagers.users.limit"
+                :total="pagers.users.total"
+                @current-change="(page) => changePage('users', page, loadUsers)"
+              />
+            </div>
+
+            <el-dialog v-model="adminDialogs.department" :title="departmentDialogMode === 'edit' ? '编辑科室' : '新增科室'" width="520px">
+              <el-form class="dialog-form" label-position="top" :model="departmentForm">
                 <el-form-item label="科室名称">
                   <el-input v-model="departmentForm.name" />
                 </el-form-item>
                 <el-form-item label="排序">
                   <el-input-number v-model="departmentForm.sortNo" :min="1" />
                 </el-form-item>
-                <div class="button-row">
-                  <el-button type="primary" @click="createDepartmentAction">新增科室</el-button>
-                  <el-button :disabled="!selectedDepartment" @click="updateDepartmentAction">更新科室</el-button>
-                  <el-button :disabled="!selectedDepartment" type="danger" plain @click="deleteDepartmentAction">删除科室</el-button>
-                  <el-button @click="loadDepartments">刷新</el-button>
+                <div class="dialog-footer">
+                  <el-button @click="adminDialogs.department = false">取消</el-button>
+                  <el-button v-if="departmentDialogMode === 'edit'" type="primary" @click="updateDepartmentAction">保存修改</el-button>
+                  <el-button v-else type="primary" @click="createDepartmentAction">确认新增</el-button>
                 </div>
               </el-form>
-            </div>
+            </el-dialog>
 
-            <div class="panel">
-              <h3>人员维护</h3>
-              <el-form label-position="top" :model="userForm">
+            <el-dialog v-model="adminDialogs.user" :title="userDialogMode === 'edit' ? '编辑人员' : '新增人员'" width="560px">
+              <el-form class="dialog-form" label-position="top" :model="userForm">
                 <el-form-item label="用户类型">
                   <el-select v-model="userType" @change="handleUserTypeChange">
                     <el-option label="管理员" value="admins" />
@@ -223,115 +274,29 @@
                 <el-form-item label="手机号">
                   <el-input v-model="userForm.phone" />
                 </el-form-item>
-                <div class="button-row">
-                  <el-button type="primary" @click="createUserAction">新增人员</el-button>
-                  <el-button :disabled="!selectedUser" @click="updateUserAction">更新人员</el-button>
-                  <el-button :disabled="!selectedUser" type="danger" plain @click="deleteUserAction">删除人员</el-button>
+                <div class="dialog-footer">
+                  <el-button @click="adminDialogs.user = false">取消</el-button>
+                  <el-button v-if="userDialogMode === 'edit'" type="primary" @click="updateUserAction">保存修改</el-button>
+                  <el-button v-else type="primary" @click="createUserAction">确认新增</el-button>
                 </div>
               </el-form>
-            </div>
-
-            <div class="panel wide-panel">
-              <h3>用户与科室列表</h3>
-              <el-table :data="departments" height="170" @row-click="selectDepartment">
-                <el-table-column prop="name" label="科室" min-width="130" />
-                <el-table-column prop="sortNo" label="排序" width="80" />
-                <el-table-column prop="status" label="状态" width="90" :formatter="statusFormatter" />
-              </el-table>
-              <el-pagination
-                class="table-pagination"
-                layout="prev, pager, next, total"
-                :current-page="pagers.departments.page"
-                :page-size="pagers.departments.limit"
-                :total="pagers.departments.total"
-                @current-change="(page) => changePage('departments', page, loadDepartments)"
-              />
-              <el-table :data="users" height="200" @row-click="selectUser">
-                <el-table-column prop="username" label="账号" min-width="130" />
-                <el-table-column prop="name" label="姓名" min-width="100" />
-                <el-table-column prop="userType" label="类型" width="110" />
-                <el-table-column prop="status" label="状态" width="90" :formatter="statusFormatter" />
-              </el-table>
-              <el-pagination
-                class="table-pagination"
-                layout="prev, pager, next, total"
-                :current-page="pagers.users.page"
-                :page-size="pagers.users.limit"
-                :total="pagers.users.total"
-                @current-change="(page) => changePage('users', page, loadUsers)"
-              />
-            </div>
+            </el-dialog>
           </section>
         </el-tab-pane>
 
         <el-tab-pane label="就诊病历" name="records">
-          <section class="three-column">
-            <div class="panel">
-              <h3>新增病历</h3>
-              <el-form label-position="top" :model="recordForm">
-                <el-form-item label="患者姓名">
-                  <el-input v-model="recordForm.patientName" />
-                </el-form-item>
-                <el-form-item label="医生姓名">
-                  <el-input v-model="recordForm.doctorName" />
-                </el-form-item>
-                <el-form-item label="主诉">
-                  <el-input v-model="recordForm.chiefComplaint" />
-                </el-form-item>
-                <el-form-item label="诊断">
-                  <el-input v-model="recordForm.diagnosis" />
-                </el-form-item>
-                <el-form-item label="治疗建议">
-                  <el-input v-model="recordForm.treatmentAdvice" type="textarea" :rows="3" />
-                </el-form-item>
-                <el-form-item label="附件地址">
-                  <el-input v-model="recordForm.fileUrl" placeholder="/uploads/record-demo.pdf" />
-                </el-form-item>
-                <div class="button-row">
-                  <el-button type="primary" @click="createRecordAction">保存病历</el-button>
-                  <el-button :disabled="!selectedRecord" @click="updateRecordAction">更新病历</el-button>
-                  <el-button :disabled="!selectedRecord" type="danger" plain @click="deleteRecordAction">删除病历</el-button>
-                  <el-button @click="loadRecords">刷新</el-button>
-                </div>
-              </el-form>
-            </div>
-
-            <div class="panel">
-              <h3>分诊入院</h3>
-              <el-form label-position="top" :model="triageForm">
-                <el-form-item label="患者姓名">
-                  <el-input v-model="triageForm.patientName" />
-                </el-form-item>
-                <el-form-item label="主诉">
-                  <el-input v-model="triageForm.chiefComplaint" />
-                </el-form-item>
-                <el-form-item label="分诊级别">
-                  <el-select v-model="triageForm.triageLevel">
-                    <el-option label="普通" value="normal" />
-                    <el-option label="急诊" value="urgent" />
-                  </el-select>
-                </el-form-item>
-                <div class="button-row">
-                  <el-button type="primary" @click="createTriageAction">分诊</el-button>
-                  <el-button @click="createAdmissionAction">入院</el-button>
-                </div>
-              </el-form>
-              <el-divider />
-              <el-form label-position="top" :model="admissionForm">
-                <el-form-item label="病区床位">
-                  <el-input v-model="admissionForm.bedNo" />
-                </el-form-item>
-                <el-form-item label="出院时间">
-                  <el-input v-model="dischargeForm.dischargeTime" />
-                </el-form-item>
-                <el-button @click="dischargeAdmissionAction">办理出院</el-button>
-              </el-form>
-            </div>
-
-            <div class="panel">
+          <section class="two-column">
+            <div class="panel wide-panel">
               <div class="panel-head">
                 <h3>病历列表</h3>
-                <el-button @click="createArchiveApplicationAction">申请归档</el-button>
+                <div class="button-row">
+                  <el-button type="primary" @click="openRecordDialog('create')">新增病历</el-button>
+                  <el-button :disabled="!selectedRecord" @click="openRecordDialog('edit')">编辑病历</el-button>
+                  <el-button :disabled="!selectedRecord" type="danger" plain @click="deleteRecordAction">删除病历</el-button>
+                  <el-button @click="adminDialogs.inpatient = true">分诊入院</el-button>
+                  <el-button @click="createArchiveApplicationAction">申请归档</el-button>
+                  <el-button @click="loadRecords">刷新</el-button>
+                </div>
               </div>
               <el-table :data="records" height="190" @row-click="selectRecord">
                 <el-table-column prop="recordNo" label="病历号" min-width="130" />
@@ -361,6 +326,11 @@
                 <el-table-column prop="patientName" label="患者" min-width="90" />
                 <el-table-column prop="bedNo" label="床位" width="100" />
                 <el-table-column prop="status" label="状态" width="110" :formatter="statusFormatter" />
+                <el-table-column label="操作" width="100">
+                  <template #default>
+                    <el-button link type="primary" @click="adminDialogs.inpatient = true">办理出院</el-button>
+                  </template>
+                </el-table-column>
               </el-table>
               <el-pagination
                 class="table-pagination"
@@ -399,29 +369,25 @@
             </div>
 
             <div class="panel">
-              <h3>病历模板</h3>
-              <el-form label-position="top" :model="templateForm">
-                <el-form-item label="模板名称">
-                  <el-input v-model="templateForm.templateName" />
-                </el-form-item>
-                <el-form-item label="模板类型">
-                  <el-input v-model="templateForm.templateType" />
-                </el-form-item>
-                <el-form-item label="模板内容">
-                  <el-input v-model="templateForm.content" type="textarea" :rows="3" />
-                </el-form-item>
+              <div class="panel-head">
+                <h3>病历模板</h3>
                 <div class="button-row">
-                  <el-button type="primary" @click="createTemplateAction">新增模板</el-button>
-                  <el-button :disabled="!selectedTemplate" @click="updateTemplateAction">更新模板</el-button>
+                  <el-button type="primary" @click="openTemplateDialog('create')">新增模板</el-button>
+                  <el-button :disabled="!selectedTemplate" @click="openTemplateDialog('edit')">编辑模板</el-button>
                   <el-button :disabled="!selectedTemplate" type="danger" plain @click="deleteTemplateAction">删除模板</el-button>
                   <el-button :disabled="!selectedTemplate" @click="applyTemplateToRecord">套用到病历</el-button>
                   <el-button @click="loadTemplates">刷新</el-button>
                 </div>
-              </el-form>
+              </div>
               <el-table :data="templates" height="180" @row-click="selectTemplate">
                 <el-table-column prop="templateName" label="模板" min-width="140" />
                 <el-table-column prop="templateType" label="类型" width="100" />
                 <el-table-column prop="status" label="状态" width="90" :formatter="statusFormatter" />
+                <el-table-column label="操作" width="90">
+                  <template #default="{ row }">
+                    <el-button link type="primary" @click.stop="openTemplateDialog('edit', row)">编辑</el-button>
+                  </template>
+                </el-table-column>
               </el-table>
               <el-pagination
                 class="table-pagination"
@@ -432,68 +398,105 @@
                 @current-change="(page) => changePage('templates', page, loadTemplates)"
               />
             </div>
+
+            <el-dialog v-model="adminDialogs.record" :title="recordDialogMode === 'edit' ? '编辑病历' : '新增病历'" width="620px">
+              <el-form class="dialog-form" label-position="top" :model="recordForm">
+                <el-form-item label="患者姓名">
+                  <el-input v-model="recordForm.patientName" />
+                </el-form-item>
+                <el-form-item label="医生姓名">
+                  <el-input v-model="recordForm.doctorName" />
+                </el-form-item>
+                <el-form-item label="主诉">
+                  <el-input v-model="recordForm.chiefComplaint" />
+                </el-form-item>
+                <el-form-item label="诊断">
+                  <el-input v-model="recordForm.diagnosis" />
+                </el-form-item>
+                <el-form-item label="治疗建议">
+                  <el-input v-model="recordForm.treatmentAdvice" type="textarea" :rows="3" />
+                </el-form-item>
+                <el-form-item label="附件地址">
+                  <el-input v-model="recordForm.fileUrl" placeholder="/uploads/record-demo.pdf" />
+                </el-form-item>
+                <div class="dialog-footer">
+                  <el-button @click="adminDialogs.record = false">取消</el-button>
+                  <el-button v-if="recordDialogMode === 'edit'" type="primary" @click="updateRecordAction">保存修改</el-button>
+                  <el-button v-else type="primary" @click="createRecordAction">确认新增</el-button>
+                </div>
+              </el-form>
+            </el-dialog>
+
+            <el-dialog v-model="adminDialogs.inpatient" title="分诊入院" width="620px">
+              <el-form class="dialog-form" label-position="top" :model="triageForm">
+                <el-form-item label="患者姓名">
+                  <el-input v-model="triageForm.patientName" />
+                </el-form-item>
+                <el-form-item label="主诉">
+                  <el-input v-model="triageForm.chiefComplaint" />
+                </el-form-item>
+                <el-form-item label="分诊级别">
+                  <el-select v-model="triageForm.triageLevel">
+                    <el-option label="普通" value="normal" />
+                    <el-option label="急诊" value="urgent" />
+                  </el-select>
+                </el-form-item>
+                <div class="button-row">
+                  <el-button type="primary" @click="createTriageAction">创建分诊</el-button>
+                  <el-button @click="createAdmissionAction">登记入院</el-button>
+                </div>
+              </el-form>
+              <el-divider />
+              <el-form class="dialog-form" label-position="top" :model="admissionForm">
+                <el-form-item label="病区床位">
+                  <el-input v-model="admissionForm.bedNo" />
+                </el-form-item>
+                <el-form-item label="出院时间">
+                  <el-input v-model="dischargeForm.dischargeTime" />
+                </el-form-item>
+                <div class="dialog-footer">
+                  <el-button @click="adminDialogs.inpatient = false">关闭</el-button>
+                  <el-button type="primary" @click="dischargeAdmissionAction">办理出院</el-button>
+                </div>
+              </el-form>
+            </el-dialog>
+
+            <el-dialog v-model="adminDialogs.template" :title="templateDialogMode === 'edit' ? '编辑模板' : '新增模板'" width="560px">
+              <el-form class="dialog-form" label-position="top" :model="templateForm">
+                <el-form-item label="模板名称">
+                  <el-input v-model="templateForm.templateName" />
+                </el-form-item>
+                <el-form-item label="模板类型">
+                  <el-input v-model="templateForm.templateType" />
+                </el-form-item>
+                <el-form-item label="模板内容">
+                  <el-input v-model="templateForm.content" type="textarea" :rows="3" />
+                </el-form-item>
+                <div class="dialog-footer">
+                  <el-button @click="adminDialogs.template = false">取消</el-button>
+                  <el-button v-if="templateDialogMode === 'edit'" type="primary" @click="updateTemplateAction">保存修改</el-button>
+                  <el-button v-else type="primary" @click="createTemplateAction">确认新增</el-button>
+                </div>
+              </el-form>
+            </el-dialog>
           </section>
         </el-tab-pane>
 
         <el-tab-pane label="诊疗管理" name="clinical">
-          <section class="three-column">
-            <div class="panel">
-              <h3>医嘱</h3>
-              <el-form label-position="top" :model="orderForm">
-                <el-form-item label="患者">
-                  <el-input v-model="orderForm.patientName" />
-                </el-form-item>
-                <el-form-item label="医生">
-                  <el-input v-model="orderForm.doctorName" />
-                </el-form-item>
-                <el-form-item label="医嘱内容">
-                  <el-input v-model="orderForm.content" type="textarea" :rows="3" />
-                </el-form-item>
-                <div class="button-row">
-                  <el-button type="primary" @click="createOrderAction">新增医嘱</el-button>
-                  <el-button :disabled="!selectedOrder" @click="updateOrderAction">更新医嘱</el-button>
-                  <el-button :disabled="!selectedOrder" type="danger" plain @click="deleteOrderAction">删除医嘱</el-button>
-                  <el-button @click="loadOrders">刷新</el-button>
-                </div>
-              </el-form>
-            </div>
-
-            <div class="panel">
-              <h3>处方与检查</h3>
-              <el-form label-position="top" :model="prescriptionForm">
-                <el-form-item label="药品名称">
-                  <el-input v-model="prescriptionForm.medicineName" />
-                </el-form-item>
-                <el-form-item label="数量">
-                  <el-input-number v-model="prescriptionForm.quantity" :min="1" />
-                </el-form-item>
-                <div class="button-row">
-                  <el-button type="primary" @click="createPrescriptionAction">新增处方</el-button>
-                  <el-button :disabled="!selectedPrescription" @click="updatePrescriptionAction">更新处方</el-button>
-                  <el-button :disabled="!selectedPrescription" type="danger" plain @click="deletePrescriptionAction">删除处方</el-button>
-                </div>
-              </el-form>
-              <el-divider />
-              <el-form label-position="top" :model="testRequestForm">
-                <el-form-item label="检查项目">
-                  <el-input v-model="testRequestForm.testItem" />
-                </el-form-item>
-                <el-form-item label="检查原因">
-                  <el-input v-model="testRequestForm.testReason" />
-                </el-form-item>
-                <el-form-item label="检查结果">
-                  <el-input v-model="testRequestForm.resultContent" type="textarea" :rows="3" />
-                </el-form-item>
-                <div class="button-row">
-                  <el-button @click="createTestRequestAction">新增检查</el-button>
-                  <el-button :disabled="!selectedTestRequest" @click="updateTestRequestAction">更新检查</el-button>
-                  <el-button :disabled="!selectedTestRequest" type="danger" plain @click="deleteTestRequestAction">删除检查</el-button>
-                </div>
-              </el-form>
-            </div>
-
+          <section class="single-column">
             <div class="panel wide-panel">
-              <h3>诊疗列表</h3>
+              <div class="panel-head">
+                <h3>诊疗列表</h3>
+                <div class="button-row">
+                  <el-button type="primary" @click="openOrderDialog('create')">新增医嘱</el-button>
+                  <el-button :disabled="!selectedOrder" @click="openOrderDialog('edit')">编辑医嘱</el-button>
+                  <el-button :disabled="!selectedOrder" type="danger" plain @click="deleteOrderAction">删除医嘱</el-button>
+                  <el-button type="primary" @click="openPrescriptionDialog('create')">新增处方</el-button>
+                  <el-button :disabled="!selectedPrescription" @click="openPrescriptionDialog('edit')">编辑处方</el-button>
+                  <el-button type="primary" @click="openTestRequestDialog('create')">新增检查</el-button>
+                  <el-button :disabled="!selectedTestRequest" @click="openTestRequestDialog('edit')">编辑检查</el-button>
+                </div>
+              </div>
               <el-table :data="orders" height="160" @row-click="selectOrder">
                 <el-table-column prop="content" label="医嘱" min-width="160" />
                 <el-table-column prop="status" label="状态" width="100" :formatter="statusFormatter" />
@@ -501,6 +504,7 @@
                   <template #default="{ row }">
                     <el-button link type="primary" @click="auditOrderAction(row)">通过</el-button>
                     <el-button link @click="executeOrderAction(row)">执行</el-button>
+                    <el-button link @click.stop="openOrderDialog('edit', row)">编辑</el-button>
                   </template>
                 </el-table-column>
               </el-table>
@@ -516,6 +520,12 @@
                 <el-table-column prop="medicineName" label="处方" min-width="150" />
                 <el-table-column prop="quantity" label="数量" width="90" />
                 <el-table-column prop="status" label="状态" width="100" :formatter="statusFormatter" />
+                <el-table-column label="操作" width="150">
+                  <template #default="{ row }">
+                    <el-button link type="primary" @click.stop="openPrescriptionDialog('edit', row)">编辑</el-button>
+                    <el-button link type="danger" @click.stop="selectPrescription(row); deletePrescriptionAction()">删除</el-button>
+                  </template>
+                </el-table-column>
               </el-table>
               <el-pagination
                 class="table-pagination"
@@ -532,6 +542,7 @@
                 <el-table-column label="操作" width="100">
                   <template #default="{ row }">
                     <el-button link type="primary" @click="auditTestAction(row)">审核</el-button>
+                    <el-button link @click.stop="openTestRequestDialog('edit', row)">编辑</el-button>
                   </template>
                 </el-table-column>
               </el-table>
@@ -544,37 +555,73 @@
                 @current-change="(page) => changePage('testRequests', page, loadTestRequests)"
               />
             </div>
+
+            <el-dialog v-model="adminDialogs.order" :title="orderDialogMode === 'edit' ? '编辑医嘱' : '新增医嘱'" width="560px">
+              <el-form class="dialog-form" label-position="top" :model="orderForm">
+                <el-form-item label="患者">
+                  <el-input v-model="orderForm.patientName" />
+                </el-form-item>
+                <el-form-item label="医生">
+                  <el-input v-model="orderForm.doctorName" />
+                </el-form-item>
+                <el-form-item label="医嘱内容">
+                  <el-input v-model="orderForm.content" type="textarea" :rows="3" />
+                </el-form-item>
+                <div class="dialog-footer">
+                  <el-button @click="adminDialogs.order = false">取消</el-button>
+                  <el-button v-if="orderDialogMode === 'edit'" type="primary" @click="updateOrderAction">保存修改</el-button>
+                  <el-button v-else type="primary" @click="createOrderAction">确认新增</el-button>
+                </div>
+              </el-form>
+            </el-dialog>
+
+            <el-dialog v-model="adminDialogs.prescription" :title="prescriptionDialogMode === 'edit' ? '编辑处方' : '新增处方'" width="520px">
+              <el-form class="dialog-form" label-position="top" :model="prescriptionForm">
+                <el-form-item label="药品名称">
+                  <el-input v-model="prescriptionForm.medicineName" />
+                </el-form-item>
+                <el-form-item label="数量">
+                  <el-input-number v-model="prescriptionForm.quantity" :min="1" />
+                </el-form-item>
+                <div class="dialog-footer">
+                  <el-button @click="adminDialogs.prescription = false">取消</el-button>
+                  <el-button v-if="prescriptionDialogMode === 'edit'" type="primary" @click="updatePrescriptionAction">保存修改</el-button>
+                  <el-button v-else type="primary" @click="createPrescriptionAction">确认新增</el-button>
+                </div>
+              </el-form>
+            </el-dialog>
+
+            <el-dialog v-model="adminDialogs.testRequest" :title="testRequestDialogMode === 'edit' ? '编辑检查' : '新增检查'" width="560px">
+              <el-form class="dialog-form" label-position="top" :model="testRequestForm">
+                <el-form-item label="检查项目">
+                  <el-input v-model="testRequestForm.testItem" />
+                </el-form-item>
+                <el-form-item label="检查原因">
+                  <el-input v-model="testRequestForm.testReason" />
+                </el-form-item>
+                <el-form-item label="检查结果">
+                  <el-input v-model="testRequestForm.resultContent" type="textarea" :rows="3" />
+                </el-form-item>
+                <div class="dialog-footer">
+                  <el-button @click="adminDialogs.testRequest = false">取消</el-button>
+                  <el-button v-if="testRequestDialogMode === 'edit'" type="primary" @click="updateTestRequestAction">保存修改</el-button>
+                  <el-button v-else type="primary" @click="createTestRequestAction">确认新增</el-button>
+                </div>
+              </el-form>
+            </el-dialog>
           </section>
         </el-tab-pane>
 
         <el-tab-pane label="审核归档" name="workflow">
-          <section class="two-column">
+          <section class="single-column">
             <div class="panel">
-              <h3>创建审核任务</h3>
-              <el-form label-position="top" :model="workflowForm">
-                <el-form-item label="业务类型">
-                  <el-select v-model="workflowForm.businessType">
-                    <el-option label="病历审核" value="medical_record" />
-                    <el-option label="医嘱审核" value="medical_order" />
-                    <el-option label="检查审核" value="test_request" />
-                    <el-option label="归档审核" value="record_archive" />
-                  </el-select>
-                </el-form-item>
-                <el-form-item label="业务ID">
-                  <el-input-number v-model="workflowForm.businessId" :min="1" />
-                </el-form-item>
-                <el-form-item label="审核角色">
-                  <el-input v-model="workflowForm.assigneeRole" />
-                </el-form-item>
+              <div class="panel-head">
+                <h3>审核与归档</h3>
                 <div class="button-row">
-                  <el-button type="primary" @click="createWorkflowTaskAction">创建任务</el-button>
-                  <el-button @click="loadWorkflowTasks">刷新</el-button>
+                  <el-button type="primary" @click="adminDialogs.workflow = true">创建审核任务</el-button>
+                  <el-button @click="loadWorkflowTasks">刷新任务</el-button>
                 </div>
-              </el-form>
-            </div>
-
-            <div class="panel">
-              <h3>审核与归档</h3>
+              </div>
               <el-table :data="workflowTasks" height="220">
                 <el-table-column prop="businessType" label="类型" min-width="130" />
                 <el-table-column prop="businessId" label="业务ID" width="100" />
@@ -639,32 +686,42 @@
                 @current-change="(page) => changePage('archives', page, loadArchives)"
               />
             </div>
+
+            <el-dialog v-model="adminDialogs.workflow" title="创建审核任务" width="560px">
+              <el-form class="dialog-form" label-position="top" :model="workflowForm">
+                <el-form-item label="业务类型">
+                  <el-select v-model="workflowForm.businessType">
+                    <el-option label="病历审核" value="medical_record" />
+                    <el-option label="医嘱审核" value="medical_order" />
+                    <el-option label="检查审核" value="test_request" />
+                    <el-option label="归档审核" value="record_archive" />
+                  </el-select>
+                </el-form-item>
+                <el-form-item label="业务ID">
+                  <el-input-number v-model="workflowForm.businessId" :min="1" />
+                </el-form-item>
+                <el-form-item label="审核角色">
+                  <el-input v-model="workflowForm.assigneeRole" />
+                </el-form-item>
+                <div class="dialog-footer">
+                  <el-button @click="adminDialogs.workflow = false">取消</el-button>
+                  <el-button type="primary" @click="createWorkflowTaskAction">确认创建</el-button>
+                </div>
+              </el-form>
+            </el-dialog>
           </section>
         </el-tab-pane>
 
         <el-tab-pane label="费用系统" name="billing">
-          <section class="two-column">
+          <section class="single-column">
             <div class="panel">
-              <h3>费用录入</h3>
-              <el-form label-position="top" :model="feeForm">
-                <el-form-item label="患者姓名">
-                  <el-input v-model="feeForm.patientName" />
-                </el-form-item>
-                <el-form-item label="费用类型">
-                  <el-input v-model="feeForm.feeType" />
-                </el-form-item>
-                <el-form-item label="金额">
-                  <el-input-number v-model="feeForm.amount" :min="0" :precision="2" />
-                </el-form-item>
+              <div class="panel-head">
+                <h3>费用列表</h3>
                 <div class="button-row">
-                  <el-button type="primary" @click="createFeeAction">新增费用</el-button>
+                  <el-button type="primary" @click="adminDialogs.fee = true">新增费用</el-button>
                   <el-button @click="loadFees">刷新</el-button>
                 </div>
-              </el-form>
-            </div>
-
-            <div class="panel">
-              <h3>费用列表</h3>
+              </div>
               <el-table :data="fees" height="360">
                 <el-table-column prop="feeNo" label="费用号" min-width="130" />
                 <el-table-column prop="patientName" label="患者" min-width="100" />
@@ -685,89 +742,39 @@
                 @current-change="(page) => changePage('fees', page, loadFees)"
               />
             </div>
+
+            <el-dialog v-model="adminDialogs.fee" title="新增费用" width="520px">
+              <el-form class="dialog-form" label-position="top" :model="feeForm">
+                <el-form-item label="患者姓名">
+                  <el-input v-model="feeForm.patientName" />
+                </el-form-item>
+                <el-form-item label="费用类型">
+                  <el-input v-model="feeForm.feeType" />
+                </el-form-item>
+                <el-form-item label="金额">
+                  <el-input-number v-model="feeForm.amount" :min="0" :precision="2" />
+                </el-form-item>
+                <div class="dialog-footer">
+                  <el-button @click="adminDialogs.fee = false">取消</el-button>
+                  <el-button type="primary" @click="createFeeAction">确认新增</el-button>
+                </div>
+              </el-form>
+            </el-dialog>
           </section>
         </el-tab-pane>
 
         <el-tab-pane label="系统内容" name="system">
-          <section class="three-column">
-            <div class="panel">
-              <h3>资讯发布</h3>
-              <el-form label-position="top" :model="newsForm">
-                <el-form-item label="标题">
-                  <el-input v-model="newsForm.title" />
-                </el-form-item>
-                <el-form-item label="分类">
-                  <el-input v-model="newsForm.category" />
-                </el-form-item>
-                <el-form-item label="内容">
-                  <el-input v-model="newsForm.content" type="textarea" :rows="3" />
-                </el-form-item>
-                <el-button type="primary" @click="createNewsAction">发布资讯</el-button>
-              </el-form>
-            </div>
-
-            <div class="panel">
-              <h3>轮播图</h3>
-              <el-form label-position="top" :model="carouselForm">
-                <el-form-item label="标题">
-                  <el-input v-model="carouselForm.title" />
-                </el-form-item>
-                <el-form-item label="图片地址">
-                  <el-input v-model="carouselForm.imageUrl" />
-                </el-form-item>
-                <el-form-item label="跳转地址">
-                  <el-input v-model="carouselForm.linkUrl" />
-                </el-form-item>
-                <div class="button-row">
-                  <el-button type="primary" @click="createCarouselAction">新增轮播</el-button>
-                  <el-button @click="loadCarousels">刷新</el-button>
-                </div>
-              </el-form>
-            </div>
-
-            <div class="panel">
-              <h3>系统配置</h3>
-              <el-form label-position="top" :model="configForm">
-                <el-form-item label="配置键">
-                  <el-input v-model="configForm.configKey" />
-                </el-form-item>
-                <el-form-item label="配置值">
-                  <el-input v-model="configForm.configValue" />
-                </el-form-item>
-                <div class="button-row">
-                  <el-button type="primary" @click="saveConfigAction">保存配置</el-button>
-                  <el-button @click="loadSyslogs">刷新日志</el-button>
-                </div>
-              </el-form>
-            </div>
-
-            <div class="panel">
-              <h3>菜单管理</h3>
-              <el-form label-position="top" :model="menuForm">
-                <el-form-item label="角色编码">
-                  <el-select v-model="menuForm.roleCode">
-                    <el-option label="管理员" value="admin" />
-                    <el-option label="医生" value="doctor" />
-                    <el-option label="患者" value="patient" />
-                    <el-option label="主任" value="director" />
-                    <el-option label="护士" value="nurse" />
-                  </el-select>
-                </el-form-item>
-                <el-form-item label="菜单名称">
-                  <el-input v-model="menuForm.name" />
-                </el-form-item>
-                <el-form-item label="菜单 JSON">
-                  <el-input v-model="menuForm.menujson" type="textarea" :rows="4" />
-                </el-form-item>
-                <div class="button-row">
-                  <el-button type="primary" @click="saveMenuAction">保存菜单</el-button>
-                  <el-button @click="loadMenuAction()">读取菜单</el-button>
-                </div>
-              </el-form>
-            </div>
-
+          <section class="single-column">
             <div class="panel wide-panel">
-              <h3>资讯、轮播、留言与日志</h3>
+              <div class="panel-head">
+                <h3>资讯、轮播、留言与日志</h3>
+                <div class="button-row">
+                  <el-button type="primary" @click="adminDialogs.news = true">发布资讯</el-button>
+                  <el-button type="primary" @click="adminDialogs.carousel = true">新增轮播</el-button>
+                  <el-button @click="adminDialogs.config = true">系统配置</el-button>
+                  <el-button @click="adminDialogs.menu = true">菜单管理</el-button>
+                </div>
+              </div>
               <el-table :data="newsItems" height="120">
                 <el-table-column prop="title" label="资讯标题" min-width="140" />
                 <el-table-column prop="category" label="分类" width="100" />
@@ -834,6 +841,82 @@
                 <el-descriptions-item label="菜单JSON">{{ menuSnapshot.menujson }}</el-descriptions-item>
               </el-descriptions>
             </div>
+
+            <el-dialog v-model="adminDialogs.news" title="发布资讯" width="560px">
+              <el-form class="dialog-form" label-position="top" :model="newsForm">
+                <el-form-item label="标题">
+                  <el-input v-model="newsForm.title" />
+                </el-form-item>
+                <el-form-item label="分类">
+                  <el-input v-model="newsForm.category" />
+                </el-form-item>
+                <el-form-item label="内容">
+                  <el-input v-model="newsForm.content" type="textarea" :rows="3" />
+                </el-form-item>
+                <div class="dialog-footer">
+                  <el-button @click="adminDialogs.news = false">取消</el-button>
+                  <el-button type="primary" @click="createNewsAction">确认发布</el-button>
+                </div>
+              </el-form>
+            </el-dialog>
+
+            <el-dialog v-model="adminDialogs.carousel" title="新增轮播" width="560px">
+              <el-form class="dialog-form" label-position="top" :model="carouselForm">
+                <el-form-item label="标题">
+                  <el-input v-model="carouselForm.title" />
+                </el-form-item>
+                <el-form-item label="图片地址">
+                  <el-input v-model="carouselForm.imageUrl" />
+                </el-form-item>
+                <el-form-item label="跳转地址">
+                  <el-input v-model="carouselForm.linkUrl" />
+                </el-form-item>
+                <div class="dialog-footer">
+                  <el-button @click="adminDialogs.carousel = false">取消</el-button>
+                  <el-button type="primary" @click="createCarouselAction">确认新增</el-button>
+                </div>
+              </el-form>
+            </el-dialog>
+
+            <el-dialog v-model="adminDialogs.config" title="系统配置" width="520px">
+              <el-form class="dialog-form" label-position="top" :model="configForm">
+                <el-form-item label="配置键">
+                  <el-input v-model="configForm.configKey" />
+                </el-form-item>
+                <el-form-item label="配置值">
+                  <el-input v-model="configForm.configValue" />
+                </el-form-item>
+                <div class="dialog-footer">
+                  <el-button @click="adminDialogs.config = false">取消</el-button>
+                  <el-button type="primary" @click="saveConfigAction">保存配置</el-button>
+                </div>
+              </el-form>
+            </el-dialog>
+
+            <el-dialog v-model="adminDialogs.menu" title="菜单管理" width="620px">
+              <el-form class="dialog-form" label-position="top" :model="menuForm">
+                <el-form-item label="角色编码">
+                  <el-select v-model="menuForm.roleCode">
+                    <el-option label="管理员" value="admin" />
+                    <el-option label="医生" value="doctor" />
+                    <el-option label="患者" value="patient" />
+                    <el-option label="主任" value="director" />
+                    <el-option label="护士" value="nurse" />
+                  </el-select>
+                </el-form-item>
+                <el-form-item label="菜单名称">
+                  <el-input v-model="menuForm.name" />
+                </el-form-item>
+                <el-form-item label="菜单 JSON">
+                  <el-input v-model="menuForm.menujson" type="textarea" :rows="4" />
+                </el-form-item>
+                <div class="dialog-footer">
+                  <el-button @click="loadMenuAction()">读取菜单</el-button>
+                  <el-button @click="adminDialogs.menu = false">取消</el-button>
+                  <el-button type="primary" @click="saveMenuAction">保存菜单</el-button>
+                </div>
+              </el-form>
+            </el-dialog>
           </section>
         </el-tab-pane>
 
@@ -895,7 +978,7 @@ import { AUTH_EVENT_NAME, clearAuthState, getStoredToken, readStoredSession, sav
 const navItems = [
   { name: 'dashboard', label: '仪表盘' },
   { name: 'appointments', label: '预约管理' },
-  { name: 'users', label: '用户科室' },
+  { name: 'users', label: '用户管理' },
   { name: 'records', label: '就诊病历' },
   { name: 'clinical', label: '诊疗管理' },
   { name: 'workflow', label: '审核归档' },
@@ -917,6 +1000,29 @@ const selectedTemplate = ref(null);
 const selectedOrder = ref(null);
 const selectedPrescription = ref(null);
 const selectedTestRequest = ref(null);
+const adminDialogs = reactive({
+  department: false,
+  user: false,
+  record: false,
+  inpatient: false,
+  template: false,
+  order: false,
+  prescription: false,
+  testRequest: false,
+  workflow: false,
+  fee: false,
+  news: false,
+  carousel: false,
+  config: false,
+  menu: false
+});
+const departmentDialogMode = ref('create');
+const userDialogMode = ref('create');
+const recordDialogMode = ref('create');
+const templateDialogMode = ref('create');
+const orderDialogMode = ref('create');
+const prescriptionDialogMode = ref('create');
+const testRequestDialogMode = ref('create');
 
 const appointments = ref([]);
 const departments = ref([]);
@@ -942,38 +1048,102 @@ const aiResult = ref('等待执行');
 
 const adminLoginForm = ref({ username: 'admin', password: 'admin123', roleCode: 'admin' });
 const appointmentFilterForm = ref({ patientId: null, doctorId: null, status: '' });
-const departmentForm = ref({ name: '全科医学科', sortNo: 3 });
-const userForm = ref({ username: 'doctor_demo', name: '赵医生', phone: '13900000003', departmentId: 1, departmentName: '心内科', specialty: '慢病管理' });
-const recordForm = ref({
-  appointmentId: 1,
-  appointmentNo: 'YY202606220001',
-  patientId: 1,
-  patientName: '患者演示',
-  doctorId: 1,
-  doctorName: '王医生',
-  visitTime: '2026-06-22 10:00',
-  chiefComplaint: '头晕一周',
-  presentIllness: '近一周反复头晕，活动后明显。',
-  pastHistory: '高血压病史三年。',
-  diagnosis: '高血压',
-  treatmentAdvice: '规律服药，低盐饮食，定期复查。',
-  fileUrl: '/uploads/demo-record.pdf'
-});
-const triageForm = ref({ patientId: 1, patientName: '患者演示', nurseId: 1, nurseName: '护士演示', chiefComplaint: '头晕一周', triageLevel: 'normal' });
-const admissionForm = ref({ patientId: 1, patientName: '患者演示', doctorId: 1, doctorName: '王医生', nurseId: 1, nurseName: '护士演示', wardNo: 'A1', bedNo: 'A1-08', admissionTime: '2026-06-22 14:00', reason: '观察治疗' });
-const dischargeForm = ref({ dischargeTime: '2026-06-25 10:00', dischargeReason: '病情稳定', dischargeSummary: '按医嘱复诊' });
-const templateForm = ref({ templateName: '门诊首诊模板', templateType: '门诊', content: '主诉：\\n现病史：\\n诊断：\\n处理意见：' });
-const orderForm = ref({ recordId: 1, patientId: 1, patientName: '患者演示', doctorId: 1, doctorName: '王医生', orderType: '长期医嘱', content: '每日监测血压两次' });
-const prescriptionForm = ref({ patientId: 1, patientName: '患者演示', doctorId: 1, doctorName: '王医生', medicineName: '硝苯地平控释片', quantity: 7, usageText: '每日一次' });
-const testRequestForm = ref({ patientId: 1, patientName: '患者演示', doctorId: 1, doctorName: '王医生', testItem: '血常规', testReason: '评估基础指标', resultContent: '' });
-const workflowForm = ref({ businessType: 'medical_record', businessId: 1, businessNo: 'BL202606220001', applicantId: 1, applicantName: '王医生', assigneeRole: 'director' });
-const feeForm = ref({ patientId: 1, patientName: '患者演示', feeType: '挂号费', amount: 30, relatedBusinessType: 'appointment', relatedBusinessId: 1 });
-const newsForm = ref({ title: '高血压随访提醒', category: '慢病管理', content: '规律监测血压，按医嘱服药。', publishStatus: 'published' });
-const carouselForm = ref({ title: '智慧医院服务', imageUrl: '/uploads/banner-emr.png', linkUrl: '/news/1', sortNo: 1 });
-const configForm = ref({ configKey: 'hospital_name', configValue: '智慧医院', remark: '演示配置' });
-const menuForm = ref({ roleCode: 'admin', name: '管理员菜单', menujson: '[{"name":"仪表盘","path":"/dashboard"},{"name":"系统管理","path":"/system"}]' });
+const departmentForm = ref(makeDefaultDepartmentForm());
+const userForm = ref(makeDefaultUserForm());
+const recordForm = ref(makeDefaultRecordForm());
+const triageForm = ref(makeDefaultTriageForm());
+const admissionForm = ref(makeDefaultAdmissionForm());
+const dischargeForm = ref(makeDefaultDischargeForm());
+const templateForm = ref(makeDefaultTemplateForm());
+const orderForm = ref(makeDefaultOrderForm());
+const prescriptionForm = ref(makeDefaultPrescriptionForm());
+const testRequestForm = ref(makeDefaultTestRequestForm());
+const workflowForm = ref(makeDefaultWorkflowForm());
+const feeForm = ref(makeDefaultFeeForm());
+const newsForm = ref(makeDefaultNewsForm());
+const carouselForm = ref(makeDefaultCarouselForm());
+const configForm = ref(makeDefaultConfigForm());
+const menuForm = ref(makeDefaultMenuForm());
 const menuSnapshot = ref(null);
 const aiForm = ref({ fileUrl: '/uploads/demo-record.png', diagnosis: '高血压', searchKeyword: '高血压', prescriptionText: '硝苯地平控释片 每日一次' });
+
+function makeDefaultDepartmentForm() {
+  return { name: '全科医学科', sortNo: 3 };
+}
+
+function makeDefaultUserForm() {
+  return { username: 'doctor_demo', name: '赵医生', phone: '13900000003', departmentId: 1, departmentName: '心内科', specialty: '慢病管理' };
+}
+
+function makeDefaultRecordForm() {
+  return {
+    appointmentId: 1,
+    appointmentNo: 'YY202606220001',
+    patientId: 1,
+    patientName: '患者演示',
+    doctorId: 1,
+    doctorName: '王医生',
+    visitTime: '2026-06-22 10:00',
+    chiefComplaint: '头晕一周',
+    presentIllness: '近一周反复头晕，活动后明显。',
+    pastHistory: '高血压病史三年。',
+    diagnosis: '高血压',
+    treatmentAdvice: '规律服药，低盐饮食，定期复查。',
+    fileUrl: '/uploads/demo-record.pdf'
+  };
+}
+
+function makeDefaultTriageForm() {
+  return { patientId: 1, patientName: '患者演示', nurseId: 1, nurseName: '护士演示', chiefComplaint: '头晕一周', triageLevel: 'normal' };
+}
+
+function makeDefaultAdmissionForm() {
+  return { patientId: 1, patientName: '患者演示', doctorId: 1, doctorName: '王医生', nurseId: 1, nurseName: '护士演示', wardNo: 'A1', bedNo: 'A1-08', admissionTime: '2026-06-22 14:00', reason: '观察治疗' };
+}
+
+function makeDefaultDischargeForm() {
+  return { dischargeTime: '2026-06-25 10:00', dischargeReason: '病情稳定', dischargeSummary: '按医嘱复诊' };
+}
+
+function makeDefaultTemplateForm() {
+  return { templateName: '门诊首诊模板', templateType: '门诊', content: '主诉：\\n现病史：\\n诊断：\\n处理意见：' };
+}
+
+function makeDefaultOrderForm() {
+  return { recordId: 1, patientId: 1, patientName: '患者演示', doctorId: 1, doctorName: '王医生', orderType: '长期医嘱', content: '每日监测血压两次' };
+}
+
+function makeDefaultPrescriptionForm() {
+  return { patientId: 1, patientName: '患者演示', doctorId: 1, doctorName: '王医生', medicineName: '硝苯地平控释片', quantity: 7, usageText: '每日一次' };
+}
+
+function makeDefaultTestRequestForm() {
+  return { patientId: 1, patientName: '患者演示', doctorId: 1, doctorName: '王医生', testItem: '血常规', testReason: '评估基础指标', resultContent: '' };
+}
+
+function makeDefaultWorkflowForm() {
+  return { businessType: 'medical_record', businessId: 1, businessNo: 'BL202606220001', applicantId: 1, applicantName: '王医生', assigneeRole: 'director' };
+}
+
+function makeDefaultFeeForm() {
+  return { patientId: 1, patientName: '患者演示', feeType: '挂号费', amount: 30, relatedBusinessType: 'appointment', relatedBusinessId: 1 };
+}
+
+function makeDefaultNewsForm() {
+  return { title: '高血压随访提醒', category: '慢病管理', content: '规律监测血压，按医嘱服药。', publishStatus: 'published' };
+}
+
+function makeDefaultCarouselForm() {
+  return { title: '智慧医院服务', imageUrl: '/uploads/banner-emr.png', linkUrl: '/news/1', sortNo: 1 };
+}
+
+function makeDefaultConfigForm() {
+  return { configKey: 'hospital_name', configValue: '安心医疗', remark: '演示配置' };
+}
+
+function makeDefaultMenuForm() {
+  return { roleCode: 'admin', name: '管理员菜单', menujson: '[{"name":"仪表盘","path":"/dashboard"},{"name":"系统管理","path":"/system"}]' };
+}
 
 /**
  * 创建后台游客态。
@@ -1304,10 +1474,131 @@ async function logoutAdminAction() {
   ElMessage.success('已退出登录');
 }
 
+function openDepartmentDialog(mode, row = null) {
+  departmentDialogMode.value = mode;
+  if (mode === 'edit') {
+    if (row) {
+      selectDepartment(row);
+    }
+    if (!selectedDepartment.value?.id) {
+      ElMessage.warning('请先选择一条科室记录');
+      return;
+    }
+  } else {
+    selectedDepartment.value = null;
+    departmentForm.value = makeDefaultDepartmentForm();
+  }
+  adminDialogs.department = true;
+}
+
+function openUserDialog(mode, row = null) {
+  userDialogMode.value = mode;
+  if (mode === 'edit') {
+    if (row) {
+      selectUser(row);
+    }
+    if (!selectedUser.value?.id) {
+      ElMessage.warning('请先选择一条人员记录');
+      return;
+    }
+  } else {
+    selectedUser.value = null;
+    userForm.value = makeDefaultUserForm();
+  }
+  adminDialogs.user = true;
+}
+
+function openRecordDialog(mode, row = null) {
+  recordDialogMode.value = mode;
+  if (mode === 'edit') {
+    if (row) {
+      selectRecord(row);
+    }
+    if (!selectedRecord.value?.id) {
+      ElMessage.warning('请先选择一条病历');
+      return;
+    }
+  } else {
+    selectedRecord.value = null;
+    selectedRecordDetail.value = null;
+    recordForm.value = makeDefaultRecordForm();
+  }
+  adminDialogs.record = true;
+}
+
+function openTemplateDialog(mode, row = null) {
+  templateDialogMode.value = mode;
+  if (mode === 'edit') {
+    if (row) {
+      selectTemplate(row);
+    }
+    if (!selectedTemplate.value?.id) {
+      ElMessage.warning('请先选择一条模板');
+      return;
+    }
+  } else {
+    selectedTemplate.value = null;
+    templateForm.value = makeDefaultTemplateForm();
+  }
+  adminDialogs.template = true;
+}
+
+function openOrderDialog(mode, row = null) {
+  orderDialogMode.value = mode;
+  if (mode === 'edit') {
+    if (row) {
+      selectOrder(row);
+    }
+    if (!selectedOrder.value?.id) {
+      ElMessage.warning('请先选择一条医嘱');
+      return;
+    }
+  } else {
+    selectedOrder.value = null;
+    orderForm.value = makeDefaultOrderForm();
+  }
+  adminDialogs.order = true;
+}
+
+function openPrescriptionDialog(mode, row = null) {
+  prescriptionDialogMode.value = mode;
+  if (mode === 'edit') {
+    if (row) {
+      selectPrescription(row);
+    }
+    if (!selectedPrescription.value?.id) {
+      ElMessage.warning('请先选择一条处方');
+      return;
+    }
+  } else {
+    selectedPrescription.value = null;
+    prescriptionForm.value = makeDefaultPrescriptionForm();
+  }
+  adminDialogs.prescription = true;
+}
+
+function openTestRequestDialog(mode, row = null) {
+  testRequestDialogMode.value = mode;
+  if (mode === 'edit') {
+    if (row) {
+      selectTestRequest(row);
+    }
+    if (!selectedTestRequest.value?.id) {
+      ElMessage.warning('请先选择一条检查申请');
+      return;
+    }
+  } else {
+    selectedTestRequest.value = null;
+    testRequestForm.value = makeDefaultTestRequestForm();
+  }
+  adminDialogs.testRequest = true;
+}
+
 async function createDepartmentAction() {
   try {
     await createDepartment(departmentForm.value);
     await loadDepartments();
+    adminDialogs.department = false;
     ElMessage.success('科室已新增');
   } catch (error) {
     showError(error);
@@ -1342,6 +1633,7 @@ async function updateDepartmentAction() {
   try {
     await updateDepartment(selectedDepartment.value.id, departmentForm.value);
     await loadDepartments();
+    adminDialogs.department = false;
     ElMessage.success('科室已更新');
   } catch (error) {
     showError(error);
@@ -1358,7 +1650,7 @@ async function deleteDepartmentAction() {
     await deleteDepartment(selectedDepartment.value.id);
     await loadDepartments();
     selectedDepartment.value = null;
-    departmentForm.value = { name: '全科医学科', sortNo: 3 };
+    departmentForm.value = makeDefaultDepartmentForm();
     ElMessage.success('科室已删除');
   } catch (error) {
     showError(error);
@@ -1369,6 +1661,7 @@ async function createUserAction() {
   try {
     await createManagedUser(userType.value, userForm.value);
     await loadUsers();
+    adminDialogs.user = false;
     ElMessage.success('人员已新增');
   } catch (error) {
     showError(error);
@@ -1416,6 +1709,7 @@ async function updateUserAction() {
   try {
     await updateManagedUser(userType.value, selectedUser.value.id, userForm.value);
     await loadUsers();
+    adminDialogs.user = false;
     ElMessage.success('人员已更新');
   } catch (error) {
     showError(error);
@@ -1432,7 +1726,7 @@ async function deleteUserAction() {
     await deleteManagedUser(userType.value, selectedUser.value.id);
     await loadUsers();
     selectedUser.value = null;
-    userForm.value = { username: 'doctor_demo', name: '赵医生', phone: '13900000003', departmentId: 1, departmentName: '心内科', specialty: '慢病管理' };
+    userForm.value = makeDefaultUserForm();
     ElMessage.success('人员已删除');
   } catch (error) {
     showError(error);
@@ -1447,6 +1741,7 @@ async function createRecordAction() {
     orderForm.value.recordId = data.id;
     workflowForm.value.businessId = data.id;
     workflowForm.value.businessNo = data.recordNo;
+    adminDialogs.record = false;
     ElMessage.success('病历已保存');
   } catch (error) {
     showError(error);
@@ -1489,6 +1784,7 @@ async function createAdmissionAction() {
   try {
     await createAdmission(admissionForm.value);
     await loadAdmissions();
+    adminDialogs.inpatient = false;
     ElMessage.success('入院登记已创建');
   } catch (error) {
     showError(error);
@@ -1528,6 +1824,7 @@ async function dischargeAdmissionAction() {
     await dischargeAdmission(admission.id, dischargeForm.value);
     await loadAdmissions();
     loadDischarges();
+    adminDialogs.inpatient = false;
     ElMessage.success('出院办理完成');
   } catch (error) {
     showError(error);
@@ -1538,6 +1835,7 @@ async function createTemplateAction() {
   try {
     await createMedicalRecordTemplate(templateForm.value);
     await loadTemplates();
+    adminDialogs.template = false;
     ElMessage.success('病历模板已新增');
   } catch (error) {
     showError(error);
@@ -1573,6 +1871,7 @@ async function updateTemplateAction() {
   try {
     await updateMedicalRecordTemplate(selectedTemplate.value.id, templateForm.value);
     await loadTemplates();
+    adminDialogs.template = false;
     ElMessage.success('模板已更新');
   } catch (error) {
     showError(error);
@@ -1589,7 +1888,7 @@ async function deleteTemplateAction() {
     await deleteMedicalRecordTemplate(selectedTemplate.value.id);
     await loadTemplates();
     selectedTemplate.value = null;
-    templateForm.value = { templateName: '门诊首诊模板', templateType: '门诊', content: '主诉：\\n现病史：\\n诊断：\\n处理意见：' };
+    templateForm.value = makeDefaultTemplateForm();
     ElMessage.success('模板已删除');
   } catch (error) {
     showError(error);
@@ -1653,6 +1952,7 @@ async function updateRecordAction() {
     await loadRecords();
     selectedRecord.value = data;
     await loadRecordDetail(data.id);
+    adminDialogs.record = false;
     ElMessage.success('病历已更新');
   } catch (error) {
     showError(error);
@@ -1705,6 +2005,7 @@ async function createOrderAction() {
   try {
     await createMedicalOrder(orderForm.value);
     await loadOrders();
+    adminDialogs.order = false;
     ElMessage.success('医嘱已新增');
   } catch (error) {
     showError(error);
@@ -1744,6 +2045,7 @@ async function updateOrderAction() {
   try {
     await updateMedicalOrder(selectedOrder.value.id, orderForm.value);
     await loadOrders();
+    adminDialogs.order = false;
     ElMessage.success('医嘱已更新');
   } catch (error) {
     showError(error);
@@ -1790,6 +2092,7 @@ async function createPrescriptionAction() {
   try {
     await createPrescription(prescriptionForm.value);
     await loadPrescriptions();
+    adminDialogs.prescription = false;
     ElMessage.success('处方已新增');
   } catch (error) {
     showError(error);
@@ -1829,6 +2132,7 @@ async function updatePrescriptionAction() {
   try {
     await updatePrescription(selectedPrescription.value.id, prescriptionForm.value);
     await loadPrescriptions();
+    adminDialogs.prescription = false;
     ElMessage.success('处方已更新');
   } catch (error) {
     showError(error);
@@ -1855,6 +2159,7 @@ async function createTestRequestAction() {
   try {
     await createTestRequest(testRequestForm.value);
     await loadTestRequests();
+    adminDialogs.testRequest = false;
     ElMessage.success('检查申请已新增');
   } catch (error) {
     showError(error);
@@ -1894,6 +2199,7 @@ async function updateTestRequestAction() {
   try {
     await updateTestRequest(selectedTestRequest.value.id, testRequestForm.value);
     await loadTestRequests();
+    adminDialogs.testRequest = false;
     ElMessage.success('检查申请已更新');
   } catch (error) {
     showError(error);
@@ -1930,6 +2236,7 @@ async function createWorkflowTaskAction() {
   try {
     await createWorkflowTask(workflowForm.value);
     await loadWorkflowTasks();
+    adminDialogs.workflow = false;
     ElMessage.success('审核任务已创建');
   } catch (error) {
     showError(error);
@@ -2013,6 +2320,7 @@ async function createFeeAction() {
   try {
     await createFee(feeForm.value);
     await loadFees();
+    adminDialogs.fee = false;
     ElMessage.success('费用已新增');
   } catch (error) {
     showError(error);
@@ -2044,6 +2352,7 @@ async function createNewsAction() {
   try {
     await createNews(newsForm.value);
     await loadNews();
+    adminDialogs.news = false;
     ElMessage.success('资讯已发布');
   } catch (error) {
     showError(error);
@@ -2086,6 +2395,7 @@ async function createCarouselAction() {
   try {
     await createCarousel(carouselForm.value);
     await loadCarousels();
+    adminDialogs.carousel = false;
     ElMessage.success('轮播图已新增');
   } catch (error) {
     showError(error);
@@ -2116,6 +2426,7 @@ async function deleteCarouselAction(row) {
 async function saveConfigAction() {
   try {
     await saveConfig(configForm.value);
+    adminDialogs.config = false;
     ElMessage.success('配置已保存');
   } catch (error) {
     showError(error);
@@ -2129,6 +2440,7 @@ async function saveConfigAction() {
 async function saveMenuAction() {
   try {
     menuSnapshot.value = unwrap(await saveMenu(menuForm.value));
+    adminDialogs.menu = false;
     ElMessage.success('菜单已保存');
   } catch (error) {
     showError(error);
@@ -2275,28 +2587,50 @@ onBeforeUnmount(() => {
   place-items: center;
   padding: 24px;
   background:
-    linear-gradient(135deg, rgba(16, 32, 51, 0.12), rgba(15, 118, 110, 0.1)),
-    #f4f7fb;
+    radial-gradient(circle at 72% 20%, rgba(136, 205, 194, 0.22), transparent 18%),
+    radial-gradient(circle at 24% 68%, rgba(186, 221, 180, 0.18), transparent 20%),
+    #f6f8f6;
   color: #1f2937;
 }
 
 .auth-card {
-  width: min(460px, 100%);
-  padding: 28px;
+  width: min(380px, 100%);
+  padding: 34px 30px 32px;
   background: #ffffff;
-  border: 1px solid #dbe3ee;
-  border-radius: 8px;
-  box-shadow: 0 18px 50px rgba(15, 23, 42, 0.14);
+  border: 1px solid #e3ece6;
+  border-radius: 14px;
+  box-shadow: 0 18px 45px rgba(18, 63, 62, 0.14);
 }
 
 .auth-brand {
+  display: grid;
+  justify-items: center;
+  gap: 8px;
   margin-bottom: 22px;
+  text-align: center;
 }
 
 .auth-brand h1 {
   margin: 0;
-  font-size: 28px;
+  color: #145c5b;
+  font-size: 26px;
   letter-spacing: 0;
+}
+
+.auth-brand p {
+  margin: 0;
+  color: #738382;
+  font-size: 13px;
+}
+
+.brand-icon {
+  display: inline-grid;
+  width: 26px;
+  height: 26px;
+  place-items: center;
+  color: #7fd0c1;
+  border: 1px solid rgba(127, 208, 193, 0.7);
+  border-radius: 4px;
 }
 
 .auth-submit {
@@ -2305,50 +2639,57 @@ onBeforeUnmount(() => {
 
 .admin-shell {
   display: grid;
-  grid-template-columns: 220px minmax(0, 1fr);
+  grid-template-columns: 164px minmax(0, 1fr);
   min-height: 100vh;
-  background: #f4f7fb;
+  background: #f2f4f8;
   color: #1f2937;
 }
 
 .sidebar {
-  padding: 24px 18px;
-  background: #102033;
+  padding: 0;
+  background: linear-gradient(180deg, #104f53 0%, #286f73 100%);
   color: #ffffff;
 }
 
 .sidebar h1 {
-  margin: 0 0 24px;
-  font-size: 22px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 38px;
+  padding: 0 10px;
+  margin: 0;
+  font-size: 15px;
   letter-spacing: 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
 }
 
 .sidebar nav {
   display: grid;
-  gap: 8px;
+  gap: 0;
+  padding-top: 22px;
 }
 
 .sidebar button {
   width: 100%;
-  min-height: 40px;
-  padding: 0 12px;
-  color: #cbd5e1;
+  min-height: 38px;
+  padding: 0 18px;
+  color: rgba(255, 255, 255, 0.82);
   text-align: left;
   background: transparent;
   border: 0;
-  border-radius: 6px;
+  border-radius: 0;
   cursor: pointer;
 }
 
 .sidebar button.active,
 .sidebar button:hover {
   color: #ffffff;
-  background: #1f6f78;
+  background: rgba(255, 255, 255, 0.1);
 }
 
 .workspace {
   min-width: 0;
-  padding: 24px;
+  padding: 0 28px 28px;
 }
 
 .workspace-head,
@@ -2362,18 +2703,27 @@ onBeforeUnmount(() => {
 }
 
 .workspace-head {
+  min-height: 34px;
   justify-content: space-between;
-  margin-bottom: 18px;
+  margin: 0 -28px 34px;
+  padding: 0 28px;
+  background: #ffffff;
+  border-bottom: 1px solid #e7ecf2;
+  box-shadow: 0 2px 10px rgba(15, 36, 44, 0.04);
 }
 
 .session {
   justify-content: flex-end;
 }
 
+.button-row {
+  flex-wrap: wrap;
+}
+
 .eyebrow {
-  margin: 0 0 6px;
-  color: #0f766e;
-  font-size: 14px;
+  margin: 0;
+  color: #53656a;
+  font-size: 13px;
 }
 
 h2,
@@ -2383,7 +2733,8 @@ h3 {
 }
 
 h2 {
-  font-size: 28px;
+  font-size: 14px;
+  font-weight: 500;
 }
 
 h3 {
@@ -2392,10 +2743,18 @@ h3 {
 }
 
 .workspace-tabs {
-  padding: 18px;
+  padding: 0;
   background: #ffffff;
-  border: 1px solid #dbe3ee;
-  border-radius: 8px;
+  border: 1px solid #e5eaf0;
+  border-radius: 0;
+}
+
+.workspace-tabs :deep(.el-tabs__header) {
+  display: none;
+}
+
+.workspace-tabs :deep(.el-tabs__content) {
+  padding: 24px 16px 24px;
 }
 
 .dashboard-layout {
@@ -2413,9 +2772,9 @@ h3 {
   display: grid;
   gap: 8px;
   padding: 16px;
-  background: #f8fbff;
-  border: 1px solid #dbe7f3;
-  border-radius: 8px;
+  background: #fbfdff;
+  border: 1px solid #e9eef4;
+  border-radius: 2px;
 }
 
 .overview-label {
@@ -2429,10 +2788,15 @@ h3 {
 }
 
 .two-column,
+.single-column,
 .three-column {
   display: grid;
   gap: 18px;
   align-items: start;
+}
+
+.single-column {
+  grid-template-columns: 1fr;
 }
 
 .two-column {
@@ -2446,9 +2810,9 @@ h3 {
 .panel {
   min-width: 0;
   padding: 18px;
-  background: #fbfcff;
-  border: 1px solid #e2e8f0;
-  border-radius: 8px;
+  background: #ffffff;
+  border: 1px solid #e7edf3;
+  border-radius: 0;
 }
 
 .wide-panel {
@@ -2474,16 +2838,52 @@ h3 {
   margin-top: 12px;
 }
 
+.dialog-form {
+  padding-top: 4px;
+}
+
+.dialog-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 10px;
+}
+
 .result-box {
   min-height: 320px;
   max-height: 460px;
   overflow: auto;
   padding: 14px;
   margin: 0;
-  background: #111827;
+  background: #0f4e52;
   color: #d1fae5;
   border-radius: 8px;
   white-space: pre-wrap;
+}
+
+:deep(.el-button--primary) {
+  background: #0d7dcc;
+  border-color: #0d7dcc;
+}
+
+:deep(.el-button--danger) {
+  background: #f05252;
+  border-color: #f05252;
+}
+
+:deep(.el-table th.el-table__cell) {
+  background: #fbfcfe;
+  color: #52606d;
+  font-weight: 500;
+}
+
+:deep(.el-table td.el-table__cell),
+:deep(.el-table th.el-table__cell) {
+  border-color: #edf1f5;
+}
+
+:deep(.el-pagination.is-background .el-pager li.is-active) {
+  background-color: #0d7dcc;
 }
 
 @media (max-width: 1060px) {

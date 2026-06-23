@@ -2,8 +2,9 @@
   <main v-if="!hasPatientToken" class="auth-page patient-auth-page">
     <section class="auth-card">
       <div class="auth-brand">
-        <p class="eyebrow">患者端</p>
-        <h1>电子病历管理系统</h1>
+        <span class="brand-icon">✚</span>
+        <h1>安心医疗</h1>
+        <p>请登录您的账号，开启健康管理之旅</p>
       </div>
 
       <el-tabs v-model="patientAuthMode" class="auth-tabs">
@@ -16,6 +17,7 @@
               <el-input v-model="loginForm.password" type="password" show-password />
             </el-form-item>
             <el-button type="primary" class="auth-submit" @click="submitLogin">登录</el-button>
+            <button class="auth-switch" type="button" @click="patientAuthMode = 'register'">立即注册</button>
           </el-form>
         </el-tab-pane>
 
@@ -40,6 +42,7 @@
               <el-input v-model="registerForm.password" type="password" show-password />
             </el-form-item>
             <el-button type="primary" class="auth-submit" @click="submitRegister">注册</el-button>
+            <button class="auth-switch" type="button" @click="patientAuthMode = 'login'">返回登录</button>
           </el-form>
         </el-tab-pane>
       </el-tabs>
@@ -48,16 +51,33 @@
 
   <main v-else class="patient-workspace">
     <header class="topbar">
-      <div>
-        <p class="eyebrow">患者端</p>
-        <h1>电子病历管理系统</h1>
+      <div class="brand">
+        <span class="brand-icon">✚</span>
+        <strong>安心医疗</strong>
       </div>
+      <nav class="patient-nav" aria-label="患者端功能导航">
+        <button
+          v-for="item in patientNavItems"
+          :key="item.name"
+          :class="{ active: activeTab === item.name }"
+          type="button"
+          @click="activeTab = item.name"
+        >
+          {{ item.label }}
+        </button>
+      </nav>
       <div class="session">
+        <span class="avatar">{{ session.name.slice(0, 1) }}</span>
         <span>{{ session.name }}</span>
         <el-tag type="success">{{ session.roleCode }}</el-tag>
         <el-button v-if="hasPatientToken" link type="primary" @click="logoutPatientAction">退出</el-button>
       </div>
     </header>
+
+    <section class="page-hero">
+      <h1>{{ patientPageTitle }}</h1>
+      <p>{{ patientPageSubtitle }}</p>
+    </section>
 
     <el-tabs v-model="activeTab" class="workspace-tabs">
       <el-tab-pane label="首页" name="home">
@@ -132,35 +152,15 @@
       </el-tab-pane>
 
       <el-tab-pane label="预约挂号" name="appointment">
-        <section class="two-column">
+        <section class="single-column">
           <div class="panel">
-            <h2>提交预约</h2>
-            <el-form label-position="top" :model="appointmentForm">
-              <el-form-item label="医生">
-                <el-select v-model="appointmentForm.doctorId" @change="syncDoctor">
-                  <el-option
-                    v-for="doctor in doctors"
-                    :key="doctor.id"
-                    :label="`${doctor.name} - ${doctor.departmentName}`"
-                    :value="doctor.id"
-                  />
-                </el-select>
-              </el-form-item>
-              <el-form-item label="预约时间">
-                <el-input v-model="appointmentForm.appointmentTime" placeholder="2026-06-23 09:00" />
-              </el-form-item>
-              <el-form-item label="备注">
-                <el-input v-model="appointmentForm.remark" type="textarea" :rows="3" />
-              </el-form-item>
+            <div class="panel-head">
+              <h2>我的预约</h2>
               <div class="button-row">
-                <el-button type="primary" @click="submitAppointment">提交预约</el-button>
+                <el-button type="primary" @click="patientDialogs.appointment = true">新增预约</el-button>
                 <el-button @click="loadAppointments">刷新列表</el-button>
               </div>
-            </el-form>
-          </div>
-
-          <div class="panel">
-            <h2>我的预约</h2>
+            </div>
             <el-table :data="appointments" height="360">
               <el-table-column prop="appointmentNo" label="预约号" min-width="130" />
               <el-table-column prop="doctorName" label="医生" min-width="90" />
@@ -181,10 +181,35 @@
               @current-change="(page) => changePage('appointments', page, loadAppointments)"
             />
           </div>
+
+          <el-dialog v-model="patientDialogs.appointment" title="新增预约" width="520px">
+            <el-form class="dialog-form" label-position="top" :model="appointmentForm">
+              <el-form-item label="医生">
+                <el-select v-model="appointmentForm.doctorId" @change="syncDoctor">
+                  <el-option
+                    v-for="doctor in doctors"
+                    :key="doctor.id"
+                    :label="`${doctor.name} - ${doctor.departmentName}`"
+                    :value="doctor.id"
+                  />
+                </el-select>
+              </el-form-item>
+              <el-form-item label="预约时间">
+                <el-input v-model="appointmentForm.appointmentTime" placeholder="2026-06-23 09:00" />
+              </el-form-item>
+              <el-form-item label="备注">
+                <el-input v-model="appointmentForm.remark" type="textarea" :rows="3" />
+              </el-form-item>
+              <div class="dialog-footer">
+                <el-button @click="patientDialogs.appointment = false">取消</el-button>
+                <el-button type="primary" @click="submitAppointment">提交预约</el-button>
+              </div>
+            </el-form>
+          </el-dialog>
         </section>
       </el-tab-pane>
 
-      <el-tab-pane label="病历费用" name="record">
+      <el-tab-pane label="就诊记录" name="record">
         <section class="two-column">
           <div class="panel">
             <div class="panel-head">
@@ -290,7 +315,7 @@
         </section>
       </el-tab-pane>
 
-      <el-tab-pane label="资讯留言" name="content">
+      <el-tab-pane label="健康资讯" name="content">
         <section class="two-column">
           <div class="panel">
             <div class="panel-head">
@@ -318,19 +343,13 @@
           </div>
 
           <div class="panel">
-            <h2>留言咨询</h2>
-            <el-form label-position="top" :model="messageForm">
-              <el-form-item label="标题">
-                <el-input v-model="messageForm.title" />
-              </el-form-item>
-              <el-form-item label="内容">
-                <el-input v-model="messageForm.content" type="textarea" :rows="4" />
-              </el-form-item>
+            <div class="panel-head">
+              <h2>留言咨询</h2>
               <div class="button-row">
-                <el-button type="primary" @click="submitMessage">提交留言</el-button>
+                <el-button type="primary" @click="patientDialogs.message = true">新增留言</el-button>
                 <el-button @click="loadMessages">刷新回复</el-button>
               </div>
-            </el-form>
+            </div>
             <el-table :data="messages" height="190">
               <el-table-column prop="title" label="标题" min-width="130" />
               <el-table-column prop="replyContent" label="回复" min-width="150" />
@@ -345,13 +364,34 @@
               @current-change="(page) => changePage('messages', page, loadMessages)"
             />
           </div>
+
+          <el-dialog v-model="patientDialogs.message" title="新增留言" width="520px">
+            <el-form class="dialog-form" label-position="top" :model="messageForm">
+              <el-form-item label="标题">
+                <el-input v-model="messageForm.title" />
+              </el-form-item>
+              <el-form-item label="内容">
+                <el-input v-model="messageForm.content" type="textarea" :rows="4" />
+              </el-form-item>
+              <div class="dialog-footer">
+                <el-button @click="patientDialogs.message = false">取消</el-button>
+                <el-button type="primary" @click="submitMessage">提交留言</el-button>
+              </div>
+            </el-form>
+          </el-dialog>
         </section>
       </el-tab-pane>
 
       <el-tab-pane label="个人中心" name="profile">
-        <section class="two-column">
+        <section class="single-column">
           <div class="panel">
-            <h2>当前会话</h2>
+            <div class="panel-head">
+              <h2>当前会话</h2>
+              <div class="button-row">
+                <el-button type="primary" @click="patientDialogs.password = true">修改密码</el-button>
+                <el-button @click="logoutPatientAction">退出登录</el-button>
+              </div>
+            </div>
             <el-descriptions :column="1" border>
               <el-descriptions-item label="用户ID">{{ session.userId || '-' }}</el-descriptions-item>
               <el-descriptions-item label="账号">{{ session.username }}</el-descriptions-item>
@@ -360,21 +400,20 @@
             </el-descriptions>
           </div>
 
-          <div class="panel">
-            <h2>修改密码</h2>
-            <el-form label-position="top" :model="passwordForm">
+          <el-dialog v-model="patientDialogs.password" title="修改密码" width="480px">
+            <el-form class="dialog-form" label-position="top" :model="passwordForm">
               <el-form-item label="旧密码">
                 <el-input v-model="passwordForm.oldPassword" type="password" show-password />
               </el-form-item>
               <el-form-item label="新密码">
                 <el-input v-model="passwordForm.newPassword" type="password" show-password />
               </el-form-item>
-              <div class="button-row">
+              <div class="dialog-footer">
+                <el-button @click="patientDialogs.password = false">取消</el-button>
                 <el-button type="primary" @click="submitPasswordChange">保存新密码</el-button>
-                <el-button @click="logoutPatientAction">退出登录</el-button>
               </div>
             </el-form>
-          </div>
+          </el-dialog>
         </section>
       </el-tab-pane>
 
@@ -469,6 +508,20 @@ const messageForm = ref({
   content: '请问处方药需要饭后服用吗？'
 });
 const aiForm = ref({ keyword: '高血压 随访', diagnosis: '高血压' });
+const patientDialogs = reactive({
+  appointment: false,
+  message: false,
+  password: false
+});
+const patientNavItems = [
+  { name: 'home', label: '首页' },
+  { name: 'appointment', label: '预约挂号' },
+  { name: 'record', label: '就诊记录' },
+  { name: 'clinical', label: '处方检查' },
+  { name: 'content', label: '健康资讯' },
+  { name: 'profile', label: '个人中心' },
+  { name: 'ai', label: '智能检索' }
+];
 
 /**
  * 创建患者端游客态。
@@ -487,6 +540,19 @@ const currentPatient = computed(() => ({
   patientId: session.value.userId || 1,
   patientName: session.value.name || session.value.username || '患者演示'
 }));
+
+const patientPageMeta = {
+  home: ['首页', '欢迎来到安心医疗，随时查看健康服务与就医信息'],
+  appointment: ['预约挂号', '健康从这里开始，我们随时为您提供专业服务'],
+  record: ['就诊记录', '在这里查看您的历史就诊记录，帮助您更好了解自己的健康状况'],
+  clinical: ['处方检查', '集中查看医生为您开具的处方和检查申请'],
+  content: ['健康资讯', '了解最新健康知识，也可以向医护人员留言咨询'],
+  profile: ['个人中心', '管理您的账号信息和登录安全'],
+  ai: ['智能检索', '通过智能工具快速检索病历摘要与用药建议']
+};
+
+const patientPageTitle = computed(() => patientPageMeta[activeTab.value]?.[0] || '安心医疗');
+const patientPageSubtitle = computed(() => patientPageMeta[activeTab.value]?.[1] || '为您提供贴心医疗服务');
 
 function unwrap(response) {
   const body = response?.data;
@@ -718,6 +784,7 @@ async function submitAppointment() {
     Object.assign(appointmentForm.value, currentPatient.value);
     await createAppointment(appointmentForm.value);
     await loadAppointments();
+    patientDialogs.appointment = false;
     ElMessage.success('预约已提交');
   } catch (error) {
     showError(error);
@@ -828,6 +895,7 @@ async function submitMessage() {
     Object.assign(messageForm.value, { userId: currentPatient.value.patientId, userName: currentPatient.value.patientName });
     await createMessage(messageForm.value);
     await loadMessages();
+    patientDialogs.message = false;
     ElMessage.success('留言已提交');
   } catch (error) {
     showError(error);
@@ -865,6 +933,7 @@ async function runMedicineRecommend() {
 async function submitPasswordChange() {
   try {
     unwrap(await changePassword(passwordForm.value));
+    patientDialogs.password = false;
     ElMessage.success('密码已修改');
   } catch (error) {
     showError(error);
@@ -923,45 +992,149 @@ onBeforeUnmount(() => {
   place-items: center;
   padding: 24px;
   background:
-    linear-gradient(135deg, rgba(15, 118, 110, 0.12), rgba(37, 99, 235, 0.08)),
-    #f3f6fa;
+    radial-gradient(circle at 22% 34%, rgba(174, 218, 183, 0.24), transparent 18%),
+    radial-gradient(circle at 78% 24%, rgba(167, 217, 200, 0.28), transparent 16%),
+    radial-gradient(circle at 68% 72%, rgba(202, 230, 190, 0.22), transparent 15%),
+    #f7f7ef;
   color: #1f2937;
 }
 
 .auth-card {
-  width: min(460px, 100%);
-  padding: 28px;
+  width: min(360px, 100%);
+  padding: 34px 30px 32px;
   background: #ffffff;
-  border: 1px solid #dbe3ee;
-  border-radius: 8px;
-  box-shadow: 0 18px 50px rgba(15, 23, 42, 0.12);
+  border: 1px solid rgba(218, 231, 219, 0.85);
+  border-radius: 14px;
+  box-shadow: 0 18px 45px rgba(67, 92, 75, 0.13);
 }
 
 .auth-brand {
+  display: grid;
+  justify-items: center;
+  gap: 8px;
   margin-bottom: 22px;
+  text-align: center;
+}
+
+.brand-icon {
+  display: inline-grid;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  color: #62ad77;
+  border: 1px solid #9ac7a5;
+  border-radius: 6px;
+  font-weight: 700;
+}
+
+.auth-brand h1 {
+  margin: 0;
+  color: #3c7965;
+  font-size: 25px;
+  letter-spacing: 0;
+}
+
+.auth-brand p {
+  margin: 0;
+  color: #7c8b88;
+  font-size: 13px;
 }
 
 .auth-tabs :deep(.el-tabs__header) {
-  margin-bottom: 18px;
+  display: none;
+}
+
+.auth-switch {
+  display: block;
+  margin: 14px auto 0;
+  color: #5b9276;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  font-size: 13px;
 }
 
 .auth-submit {
   width: 100%;
+  min-height: 38px;
+  background: #64ad70;
+  border-color: #64ad70;
 }
 
 .patient-workspace {
   min-height: 100vh;
-  padding: 24px;
-  background: #f3f6fa;
-  color: #1f2937;
+  padding: 0 0 28px;
+  background: #f7f6ef;
+  color: #2f3f47;
 }
 
 .topbar {
-  display: flex;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
-  justify-content: space-between;
-  gap: 20px;
-  margin-bottom: 18px;
+  gap: 18px;
+  min-height: 64px;
+  padding: 0 max(24px, calc((100vw - 980px) / 2));
+  margin-bottom: 34px;
+  background: rgba(255, 255, 255, 0.95);
+  border-bottom: 1px solid #edf1ed;
+  box-shadow: 0 4px 14px rgba(28, 57, 44, 0.08);
+  backdrop-filter: blur(12px);
+}
+
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  color: #3f8067;
+  font-size: 20px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.patient-nav {
+  display: flex;
+  align-items: stretch;
+  min-width: 0;
+  height: 64px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.patient-nav::-webkit-scrollbar {
+  display: none;
+}
+
+.patient-nav button {
+  min-width: 86px;
+  padding: 0 14px;
+  color: #53656a;
+  background: transparent;
+  border: 0;
+  border-bottom: 3px solid transparent;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.patient-nav button.active,
+.patient-nav button:hover {
+  color: #4fa66b;
+  background: #eef8f0;
+  border-bottom-color: #63b878;
+}
+
+.avatar {
+  display: inline-grid;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  color: #ffffff;
+  background: #8bcf9a;
+  border-radius: 50%;
+  font-size: 13px;
 }
 
 .eyebrow {
@@ -995,14 +1168,63 @@ h2 {
 
 .session {
   justify-content: flex-end;
-  min-width: 180px;
+  min-width: 220px;
+  color: #536366;
+}
+
+.page-hero {
+  width: min(880px, calc(100vw - 40px));
+  min-height: 96px;
+  display: grid;
+  place-items: center;
+  margin: 0 auto 20px;
+  padding: 18px 28px;
+  text-align: center;
+  background: linear-gradient(100deg, #9cd7ec 0%, #bfe7b1 100%);
+  border-radius: 9px;
+  color: #2e4b56;
+}
+
+.page-hero h1 {
+  font-size: 24px;
+  font-weight: 700;
+}
+
+.page-hero p {
+  margin: 8px 0 0;
+  color: #567070;
+  font-size: 13px;
 }
 
 .workspace-tabs {
-  padding: 18px;
-  background: #ffffff;
-  border: 1px solid #dbe3ee;
-  border-radius: 8px;
+  width: min(880px, calc(100vw - 40px));
+  margin: 0 auto;
+  padding: 0;
+}
+
+.workspace-tabs :deep(.el-tabs__header) {
+  display: none;
+}
+
+.workspace-tabs :deep(.el-tabs__nav-wrap::after) {
+  height: 1px;
+  background: #edf1ed;
+}
+
+.workspace-tabs :deep(.el-tabs__item) {
+  min-width: 92px;
+  height: 52px;
+  color: #58686b;
+}
+
+.workspace-tabs :deep(.el-tabs__item.is-active) {
+  color: #57a76e;
+  background: #eef8f0;
+}
+
+.workspace-tabs :deep(.el-tabs__active-bar) {
+  height: 3px;
+  background: #64b77b;
 }
 
 .home-layout {
@@ -1010,9 +1232,14 @@ h2 {
   gap: 18px;
 }
 
+.single-column {
+  display: grid;
+  gap: 18px;
+}
+
 .two-column {
   display: grid;
-  grid-template-columns: minmax(280px, 420px) minmax(420px, 1fr);
+  grid-template-columns: minmax(260px, 360px) minmax(380px, 1fr);
   gap: 18px;
   align-items: start;
 }
@@ -1020,9 +1247,10 @@ h2 {
 .panel {
   min-width: 0;
   padding: 18px;
-  background: #fbfcff;
-  border: 1px solid #e2e8f0;
-  border-radius: 8px;
+  background: #ffffff;
+  border: 1px solid #eef2ee;
+  border-radius: 9px;
+  box-shadow: 0 8px 22px rgba(94, 110, 95, 0.06);
 }
 
 .panel-head {
@@ -1038,34 +1266,74 @@ h2 {
   margin-top: 12px;
 }
 
+.dialog-form {
+  padding-top: 4px;
+}
+
+.dialog-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 10px;
+}
+
 .result-box {
   min-height: 260px;
   max-height: 360px;
   overflow: auto;
   padding: 14px;
   margin: 0;
-  background: #111827;
-  color: #d1fae5;
+  background: #173d43;
+  color: #d9f8e6;
   border-radius: 8px;
   white-space: pre-wrap;
 }
 
+:deep(.el-button--primary) {
+  background: #63b878;
+  border-color: #63b878;
+}
+
+:deep(.el-button--primary:hover) {
+  background: #55a969;
+  border-color: #55a969;
+}
+
+:deep(.el-table) {
+  color: #3c4d52;
+}
+
+:deep(.el-table th.el-table__cell) {
+  background: #f8fbf8;
+  color: #526464;
+  font-weight: 600;
+}
+
+:deep(.el-pagination.is-background .el-pager li.is-active) {
+  background-color: #63b878;
+}
+
 @media (max-width: 900px) {
   .patient-workspace {
-    padding: 16px;
+    padding-bottom: 16px;
   }
 
   .auth-card {
     padding: 20px;
   }
 
-  .topbar,
   .two-column {
     grid-template-columns: 1fr;
   }
 
   .topbar {
     display: grid;
+    grid-template-columns: 1fr;
+    padding: 14px 16px;
+  }
+
+  .patient-nav {
+    height: 44px;
   }
 
   .session {
