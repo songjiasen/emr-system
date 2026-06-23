@@ -56,15 +56,36 @@
         <strong>安心医疗</strong>
       </div>
       <nav class="patient-nav" aria-label="患者端功能导航">
-        <button
-          v-for="item in patientNavItems"
-          :key="item.name"
-          :class="{ active: activeTab === item.name }"
-          type="button"
-          @click="goToPatientTab(item.name)"
-        >
-          {{ item.label }}
-        </button>
+        <template v-for="group in patientNavGroups" :key="group.label">
+          <button
+            v-if="!group.children"
+            :class="{ active: activeTab === group.name }"
+            type="button"
+            @click="goToPatientTab(group.name)"
+          >
+            {{ group.label }}
+          </button>
+          <el-dropdown v-else trigger="click" @command="goToPatientTab">
+            <button
+              class="nav-parent"
+              :class="{ active: isPatientGroupActive(group) }"
+              type="button"
+            >
+              {{ group.label }}
+            </button>
+            <template #dropdown>
+              <el-dropdown-menu>
+                <el-dropdown-item
+                  v-for="child in group.children"
+                  :key="child.name"
+                  :command="child.name"
+                >
+                  {{ child.label }}
+                </el-dropdown-item>
+              </el-dropdown-menu>
+            </template>
+          </el-dropdown>
+        </template>
       </nav>
       <div class="session">
         <span class="avatar">{{ patientAvatarText }}</span>
@@ -81,13 +102,36 @@
 
     <el-tabs v-model="activeTab" class="workspace-tabs" @tab-change="goToPatientTab">
       <el-tab-pane label="首页" name="home">
-        <section class="home-layout">
-          <section class="two-column">
-            <div class="panel">
-              <div class="panel-head">
-                <h2>医生与科室</h2>
-                <el-button @click="loadDoctors">刷新</el-button>
-              </div>
+        <section class="single-column">
+          <div class="panel">
+            <div class="panel-head">
+              <h2>首页轮播</h2>
+              <el-button @click="loadCarousels">刷新</el-button>
+            </div>
+            <el-table :data="carousels" height="360">
+              <el-table-column prop="title" label="轮播标题" min-width="180" />
+              <el-table-column prop="imageUrl" label="图片地址" min-width="220" />
+              <el-table-column prop="linkUrl" label="跳转地址" min-width="180" />
+            </el-table>
+            <el-pagination
+              background
+              layout="prev, pager, next"
+              :page-size="pagers.carousels.limit"
+              :current-page="pagers.carousels.page"
+              :total="pagers.carousels.total"
+              @current-change="(page) => changePage('carousels', page, loadCarousels)"
+            />
+          </div>
+        </section>
+      </el-tab-pane>
+
+      <el-tab-pane label="医生介绍" name="doctors">
+        <section class="single-column">
+          <div class="panel">
+            <div class="panel-head">
+              <h2>医生介绍</h2>
+              <el-button @click="loadDoctors">刷新</el-button>
+            </div>
             <el-table :data="doctors" height="360">
               <el-table-column prop="name" label="医生" min-width="110" />
               <el-table-column prop="departmentName" label="科室" min-width="110" />
@@ -100,52 +144,6 @@
               :current-page="pagers.doctors.page"
               :total="pagers.doctors.total"
               @current-change="(page) => changePage('doctors', page, loadDoctors)"
-            />
-          </div>
-
-            <div class="panel">
-              <div class="panel-head">
-                <h2>健康资讯</h2>
-                <el-button @click="loadNews">刷新</el-button>
-              </div>
-              <el-table :data="newsList" height="220" @row-click="selectNews">
-                <el-table-column prop="title" label="标题" min-width="180" />
-                <el-table-column prop="category" label="分类" width="110" />
-                <el-table-column prop="publishStatus" label="状态" width="100" :formatter="statusFormatter" />
-              </el-table>
-              <el-pagination
-                background
-                layout="prev, pager, next"
-                :page-size="pagers.news.limit"
-                :current-page="pagers.news.page"
-                :total="pagers.news.total"
-                @current-change="(page) => changePage('news', page, loadNews)"
-              />
-              <el-descriptions v-if="selectedNews" :column="1" border class="detail-box">
-                <el-descriptions-item label="标题">{{ selectedNews.title }}</el-descriptions-item>
-                <el-descriptions-item label="摘要">{{ selectedNews.summary || '-' }}</el-descriptions-item>
-                <el-descriptions-item label="内容">{{ selectedNews.content || '-' }}</el-descriptions-item>
-              </el-descriptions>
-            </div>
-          </section>
-
-          <div class="panel">
-            <div class="panel-head">
-              <h2>轮播服务</h2>
-              <el-button @click="loadCarousels">刷新</el-button>
-            </div>
-            <el-table :data="carousels" height="220">
-              <el-table-column prop="title" label="轮播标题" min-width="180" />
-              <el-table-column prop="imageUrl" label="图片地址" min-width="220" />
-              <el-table-column prop="linkUrl" label="跳转地址" min-width="180" />
-            </el-table>
-            <el-pagination
-              background
-              layout="prev, pager, next"
-              :page-size="pagers.carousels.limit"
-              :current-page="pagers.carousels.page"
-              :total="pagers.carousels.total"
-              @current-change="(page) => changePage('carousels', page, loadCarousels)"
             />
           </div>
         </section>
@@ -210,7 +208,7 @@
       </el-tab-pane>
 
       <el-tab-pane label="就诊记录" name="record">
-        <section class="two-column">
+        <section class="single-column">
           <div class="panel">
             <div class="panel-head">
               <h2>病历记录</h2>
@@ -240,7 +238,11 @@
               </el-descriptions-item>
             </el-descriptions>
           </div>
+        </section>
+      </el-tab-pane>
 
+      <el-tab-pane label="费用支付" name="fees">
+        <section class="single-column">
           <div class="panel">
             <div class="panel-head">
               <h2>费用支付</h2>
@@ -269,8 +271,8 @@
         </section>
       </el-tab-pane>
 
-      <el-tab-pane label="处方检查" name="clinical">
-        <section class="two-column">
+      <el-tab-pane label="处方记录" name="prescriptions">
+        <section class="single-column">
           <div class="panel">
             <div class="panel-head">
               <h2>处方记录</h2>
@@ -291,7 +293,11 @@
               @current-change="(page) => changePage('prescriptions', page, loadPrescriptions)"
             />
           </div>
+        </section>
+      </el-tab-pane>
 
+      <el-tab-pane label="检查申请" name="tests">
+        <section class="single-column">
           <div class="panel">
             <div class="panel-head">
               <h2>检查申请</h2>
@@ -315,8 +321,8 @@
         </section>
       </el-tab-pane>
 
-      <el-tab-pane label="健康资讯" name="content">
-        <section class="two-column">
+      <el-tab-pane label="健康资讯" name="news">
+        <section class="single-column">
           <div class="panel">
             <div class="panel-head">
               <h2>健康资讯</h2>
@@ -341,7 +347,11 @@
               <el-descriptions-item label="内容">{{ selectedNews.content || '-' }}</el-descriptions-item>
             </el-descriptions>
           </div>
+        </section>
+      </el-tab-pane>
 
+      <el-tab-pane label="留言咨询" name="messages">
+        <section class="single-column">
           <div class="panel">
             <div class="panel-head">
               <h2>留言咨询</h2>
@@ -517,15 +527,40 @@ const patientDialogs = reactive({
   message: false,
   password: false
 });
-const patientNavItems = [
+const patientNavGroups = [
   { name: 'home', label: '首页', path: '/home' },
-  { name: 'appointment', label: '预约挂号', path: '/appointment' },
-  { name: 'record', label: '就诊记录', path: '/record' },
-  { name: 'clinical', label: '处方检查', path: '/clinical' },
-  { name: 'content', label: '健康资讯', path: '/content' },
+  {
+    label: '医疗服务',
+    children: [
+      { name: 'doctors', label: '医生介绍', path: '/doctors' },
+      { name: 'appointment', label: '预约挂号', path: '/appointment' }
+    ]
+  },
+  {
+    label: '就诊账单',
+    children: [
+      { name: 'record', label: '就诊记录', path: '/record' },
+      { name: 'fees', label: '费用支付', path: '/fees' }
+    ]
+  },
+  {
+    label: '处方检查',
+    children: [
+      { name: 'prescriptions', label: '处方记录', path: '/prescriptions' },
+      { name: 'tests', label: '检查申请', path: '/tests' }
+    ]
+  },
+  {
+    label: '健康互动',
+    children: [
+      { name: 'news', label: '健康资讯', path: '/news' },
+      { name: 'messages', label: '留言咨询', path: '/messages' }
+    ]
+  },
   { name: 'profile', label: '个人中心', path: '/profile' },
   { name: 'ai', label: '智能检索', path: '/ai' }
 ];
+const patientNavItems = patientNavGroups.flatMap((group) => group.children || [group]);
 
 /**
  * 创建患者端游客态。
@@ -546,11 +581,15 @@ const currentPatient = computed(() => ({
 }));
 
 const patientPageMeta = {
-  home: ['首页', '欢迎来到安心医疗，随时查看健康服务与就医信息'],
+  home: ['首页', '欢迎来到安心医疗，随时查看院内服务公告'],
+  doctors: ['医生介绍', '了解医生科室、擅长方向与就诊服务'],
   appointment: ['预约挂号', '健康从这里开始，我们随时为您提供专业服务'],
   record: ['就诊记录', '在这里查看您的历史就诊记录，帮助您更好了解自己的健康状况'],
-  clinical: ['处方检查', '集中查看医生为您开具的处方和检查申请'],
-  content: ['健康资讯', '了解最新健康知识，也可以向医护人员留言咨询'],
+  fees: ['费用支付', '查看您的费用记录并处理待支付账单'],
+  prescriptions: ['处方记录', '查看医生为您开具的处方记录'],
+  tests: ['检查申请', '查看检查申请、审核意见与检查结果'],
+  news: ['健康资讯', '了解最新健康知识与院内公告'],
+  messages: ['留言咨询', '向医护人员提交咨询并查看回复'],
   profile: ['个人中心', '管理您的账号信息和登录安全'],
   ai: ['智能检索', '通过智能工具快速检索病历摘要与用药建议']
 };
@@ -566,6 +605,10 @@ function resolvePatientTab(tabName) {
 function findPatientNavItem(tabName) {
   const safeTab = resolvePatientTab(tabName);
   return patientNavItems.find((item) => item.name === safeTab) || patientNavItems[0];
+}
+
+function isPatientGroupActive(group) {
+  return Boolean(group.children?.some((item) => item.name === activeTab.value));
 }
 
 function goToPatientTab(tabName) {
@@ -1007,9 +1050,12 @@ function loadPatientRouteData(tabName) {
   }
 
   if (tab === 'home') {
-    loadDoctors();
-    loadNews();
     loadCarousels();
+    return;
+  }
+
+  if (tab === 'doctors') {
+    loadDoctors();
     return;
   }
 
@@ -1021,18 +1067,30 @@ function loadPatientRouteData(tabName) {
 
   if (tab === 'record') {
     loadRecords();
+    return;
+  }
+
+  if (tab === 'fees') {
     loadFees();
     return;
   }
 
-  if (tab === 'clinical') {
+  if (tab === 'prescriptions') {
     loadPrescriptions();
+    return;
+  }
+
+  if (tab === 'tests') {
     loadTestRequests();
     return;
   }
 
-  if (tab === 'content') {
+  if (tab === 'news') {
     loadNews();
+    return;
+  }
+
+  if (tab === 'messages') {
     loadMessages();
   }
 }
@@ -1206,6 +1264,10 @@ onBeforeUnmount(() => {
 
 .patient-nav::-webkit-scrollbar {
   display: none;
+}
+
+.patient-nav .el-dropdown {
+  display: flex;
 }
 
 .patient-nav button {

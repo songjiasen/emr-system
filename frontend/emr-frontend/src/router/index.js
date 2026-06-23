@@ -13,6 +13,11 @@ const routes = [
     component: pageShell
   },
   {
+    path: '/doctors',
+    name: 'doctors',
+    component: pageShell
+  },
+  {
     path: '/appointment',
     name: 'appointment',
     component: pageShell
@@ -23,14 +28,37 @@ const routes = [
     component: pageShell
   },
   {
+    path: '/fees',
+    name: 'fees',
+    component: pageShell
+  },
+  {
+    path: '/prescriptions',
+    name: 'prescriptions',
+    component: pageShell
+  },
+  {
+    path: '/tests',
+    name: 'tests',
+    component: pageShell
+  },
+  {
     path: '/clinical',
-    name: 'clinical',
+    redirect: '/prescriptions'
+  },
+  {
+    path: '/news',
+    name: 'news',
+    component: pageShell
+  },
+  {
+    path: '/messages',
+    name: 'messages',
     component: pageShell
   },
   {
     path: '/content',
-    name: 'content',
-    component: pageShell
+    redirect: '/news'
   },
   {
     path: '/profile',

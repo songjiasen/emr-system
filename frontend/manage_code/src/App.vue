@@ -32,15 +32,29 @@
     <aside class="sidebar">
       <h1><span class="brand-icon">✚</span> 安心医疗系统</h1>
       <nav>
-        <button
-          v-for="item in navItems"
-          :key="item.name"
-          :class="{ active: activeTab === item.name }"
-          type="button"
-          @click="goToAdminTab(item.name)"
-        >
-          {{ item.label }}
-        </button>
+        <template v-for="group in navGroups" :key="group.label">
+          <button
+            v-if="!group.children"
+            :class="{ active: activeTab === group.name }"
+            type="button"
+            @click="goToAdminTab(group.name)"
+          >
+            {{ group.label }}
+          </button>
+          <section v-else class="sidebar-group">
+            <p>{{ group.label }}</p>
+            <button
+              v-for="child in group.children"
+              :key="child.name"
+              class="sidebar-child"
+              :class="{ active: activeTab === child.name }"
+              type="button"
+              @click="goToAdminTab(child.name)"
+            >
+              {{ child.label }}
+            </button>
+          </section>
+        </template>
       </nav>
     </aside>
 
@@ -184,22 +198,19 @@
           </section>
         </el-tab-pane>
 
-        <el-tab-pane label="用户科室" name="users">
+        <el-tab-pane label="科室管理" name="departments">
           <section class="single-column">
             <div class="panel wide-panel">
               <div class="panel-head">
-                <h3>用户与科室列表</h3>
+                <h3>科室列表</h3>
                 <div class="button-row">
                   <el-button type="primary" @click="openDepartmentDialog('create')">新增科室</el-button>
                   <el-button :disabled="!selectedDepartment" @click="openDepartmentDialog('edit')">编辑科室</el-button>
                   <el-button :disabled="!selectedDepartment" type="danger" plain @click="deleteDepartmentAction">删除科室</el-button>
-                  <el-button @click="loadDepartments">刷新科室</el-button>
-                  <el-button type="primary" @click="openUserDialog('create')">新增人员</el-button>
-                  <el-button :disabled="!selectedUser" @click="openUserDialog('edit')">编辑人员</el-button>
-                  <el-button :disabled="!selectedUser" type="danger" plain @click="deleteUserAction">删除人员</el-button>
+                  <el-button @click="loadDepartments">刷新</el-button>
                 </div>
               </div>
-              <el-table :data="departments" height="170" @row-click="selectDepartment">
+              <el-table :data="departments" height="360" @row-click="selectDepartment">
                 <el-table-column prop="name" label="科室" min-width="130" />
                 <el-table-column prop="sortNo" label="排序" width="80" />
                 <el-table-column prop="status" label="状态" width="90" :formatter="statusFormatter" />
@@ -217,7 +228,39 @@
                 :total="pagers.departments.total"
                 @current-change="(page) => changePage('departments', page, loadDepartments)"
               />
-              <el-table :data="users" height="200" @row-click="selectUser">
+            </div>
+
+            <el-dialog v-model="adminDialogs.department" :title="departmentDialogMode === 'edit' ? '编辑科室' : '新增科室'" width="520px">
+              <el-form class="dialog-form" label-position="top" :model="departmentForm">
+                <el-form-item label="科室名称">
+                  <el-input v-model="departmentForm.name" />
+                </el-form-item>
+                <el-form-item label="排序">
+                  <el-input-number v-model="departmentForm.sortNo" :min="1" />
+                </el-form-item>
+                <div class="dialog-footer">
+                  <el-button @click="adminDialogs.department = false">取消</el-button>
+                  <el-button v-if="departmentDialogMode === 'edit'" type="primary" @click="updateDepartmentAction">保存修改</el-button>
+                  <el-button v-else type="primary" @click="createDepartmentAction">确认新增</el-button>
+                </div>
+              </el-form>
+            </el-dialog>
+          </section>
+        </el-tab-pane>
+
+        <el-tab-pane label="人员管理" name="managed-users">
+          <section class="single-column">
+            <div class="panel wide-panel">
+              <div class="panel-head">
+                <h3>人员列表</h3>
+                <div class="button-row">
+                  <el-button type="primary" @click="openUserDialog('create')">新增人员</el-button>
+                  <el-button :disabled="!selectedUser" @click="openUserDialog('edit')">编辑人员</el-button>
+                  <el-button :disabled="!selectedUser" type="danger" plain @click="deleteUserAction">删除人员</el-button>
+                  <el-button @click="loadUsers">刷新</el-button>
+                </div>
+              </div>
+              <el-table :data="users" height="360" @row-click="selectUser">
                 <el-table-column prop="username" label="账号" min-width="130" />
                 <el-table-column prop="name" label="姓名" min-width="100" />
                 <el-table-column prop="userType" label="类型" width="110" />
@@ -237,22 +280,6 @@
                 @current-change="(page) => changePage('users', page, loadUsers)"
               />
             </div>
-
-            <el-dialog v-model="adminDialogs.department" :title="departmentDialogMode === 'edit' ? '编辑科室' : '新增科室'" width="520px">
-              <el-form class="dialog-form" label-position="top" :model="departmentForm">
-                <el-form-item label="科室名称">
-                  <el-input v-model="departmentForm.name" />
-                </el-form-item>
-                <el-form-item label="排序">
-                  <el-input-number v-model="departmentForm.sortNo" :min="1" />
-                </el-form-item>
-                <div class="dialog-footer">
-                  <el-button @click="adminDialogs.department = false">取消</el-button>
-                  <el-button v-if="departmentDialogMode === 'edit'" type="primary" @click="updateDepartmentAction">保存修改</el-button>
-                  <el-button v-else type="primary" @click="createDepartmentAction">确认新增</el-button>
-                </div>
-              </el-form>
-            </el-dialog>
 
             <el-dialog v-model="adminDialogs.user" :title="userDialogMode === 'edit' ? '编辑人员' : '新增人员'" width="560px">
               <el-form class="dialog-form" label-position="top" :model="userForm">
@@ -284,8 +311,8 @@
           </section>
         </el-tab-pane>
 
-        <el-tab-pane label="就诊病历" name="records">
-          <section class="two-column">
+        <el-tab-pane label="病历列表" name="records">
+          <section class="single-column">
             <div class="panel wide-panel">
               <div class="panel-head">
                 <h3>病历列表</h3>
@@ -293,12 +320,11 @@
                   <el-button type="primary" @click="openRecordDialog('create')">新增病历</el-button>
                   <el-button :disabled="!selectedRecord" @click="openRecordDialog('edit')">编辑病历</el-button>
                   <el-button :disabled="!selectedRecord" type="danger" plain @click="deleteRecordAction">删除病历</el-button>
-                  <el-button @click="openInpatientDialog()">分诊入院</el-button>
                   <el-button @click="createArchiveApplicationAction">申请归档</el-button>
                   <el-button @click="loadRecords">刷新</el-button>
                 </div>
               </div>
-              <el-table :data="records" height="190" @row-click="selectRecord">
+              <el-table :data="records" height="360" @row-click="selectRecord">
                 <el-table-column prop="recordNo" label="病历号" min-width="130" />
                 <el-table-column prop="patientName" label="患者" min-width="90" />
                 <el-table-column prop="diagnosis" label="诊断" min-width="150" />
@@ -321,82 +347,6 @@
                   <span v-else>-</span>
                 </el-descriptions-item>
               </el-descriptions>
-              <el-table :data="admissions" height="190">
-                <el-table-column prop="businessNo" label="住院号" min-width="130" />
-                <el-table-column prop="patientName" label="患者" min-width="90" />
-                <el-table-column prop="bedNo" label="床位" width="100" />
-                <el-table-column prop="status" label="状态" width="110" :formatter="statusFormatter" />
-                <el-table-column label="操作" width="100">
-                  <template #default="{ row }">
-                    <el-button link type="primary" @click.stop="openInpatientDialog(row)">办理出院</el-button>
-                  </template>
-                </el-table-column>
-              </el-table>
-              <el-pagination
-                class="table-pagination"
-                layout="prev, pager, next, total"
-                :current-page="pagers.admissions.page"
-                :page-size="pagers.admissions.limit"
-                :total="pagers.admissions.total"
-                @current-change="(page) => changePage('admissions', page, loadAdmissions)"
-              />
-              <el-table :data="triageRecords" height="120">
-                <el-table-column prop="triageNo" label="分诊号" min-width="130" />
-                <el-table-column prop="patientName" label="患者" width="90" />
-                <el-table-column prop="triageLevel" label="级别" width="90" />
-              </el-table>
-              <el-pagination
-                class="table-pagination"
-                layout="prev, pager, next, total"
-                :current-page="pagers.triageRecords.page"
-                :page-size="pagers.triageRecords.limit"
-                :total="pagers.triageRecords.total"
-                @current-change="(page) => changePage('triageRecords', page, loadTriageRecords)"
-              />
-              <el-table :data="discharges" height="120">
-                <el-table-column prop="dischargeNo" label="出院号" min-width="130" />
-                <el-table-column prop="patientName" label="患者" width="90" />
-                <el-table-column prop="dischargeTime" label="出院时间" min-width="150" />
-              </el-table>
-              <el-pagination
-                class="table-pagination"
-                layout="prev, pager, next, total"
-                :current-page="pagers.discharges.page"
-                :page-size="pagers.discharges.limit"
-                :total="pagers.discharges.total"
-                @current-change="(page) => changePage('discharges', page, loadDischarges)"
-              />
-            </div>
-
-            <div class="panel">
-              <div class="panel-head">
-                <h3>病历模板</h3>
-                <div class="button-row">
-                  <el-button type="primary" @click="openTemplateDialog('create')">新增模板</el-button>
-                  <el-button :disabled="!selectedTemplate" @click="openTemplateDialog('edit')">编辑模板</el-button>
-                  <el-button :disabled="!selectedTemplate" type="danger" plain @click="deleteTemplateAction">删除模板</el-button>
-                  <el-button :disabled="!selectedTemplate" @click="applyTemplateToRecord">套用到病历</el-button>
-                  <el-button @click="loadTemplates">刷新</el-button>
-                </div>
-              </div>
-              <el-table :data="templates" height="180" @row-click="selectTemplate">
-                <el-table-column prop="templateName" label="模板" min-width="140" />
-                <el-table-column prop="templateType" label="类型" width="100" />
-                <el-table-column prop="status" label="状态" width="90" :formatter="statusFormatter" />
-                <el-table-column label="操作" width="90">
-                  <template #default="{ row }">
-                    <el-button link type="primary" @click.stop="openTemplateDialog('edit', row)">编辑</el-button>
-                  </template>
-                </el-table-column>
-              </el-table>
-              <el-pagination
-                class="table-pagination"
-                layout="prev, pager, next, total"
-                :current-page="pagers.templates.page"
-                :page-size="pagers.templates.limit"
-                :total="pagers.templates.total"
-                @current-change="(page) => changePage('templates', page, loadTemplates)"
-              />
             </div>
 
             <el-dialog v-model="adminDialogs.record" :title="recordDialogMode === 'edit' ? '编辑病历' : '新增病历'" width="620px">
@@ -426,6 +376,67 @@
                 </div>
               </el-form>
             </el-dialog>
+          </section>
+        </el-tab-pane>
+
+        <el-tab-pane label="分诊记录" name="triage">
+          <section class="single-column">
+            <div class="panel wide-panel">
+              <div class="panel-head">
+                <h3>分诊记录</h3>
+                <div class="button-row">
+                  <el-button type="primary" @click="openInpatientDialog()">新增分诊</el-button>
+                  <el-button @click="loadTriageRecords">刷新</el-button>
+                </div>
+              </div>
+              <el-table :data="triageRecords" height="360">
+                <el-table-column prop="triageNo" label="分诊号" min-width="130" />
+                <el-table-column prop="patientName" label="患者" width="120" />
+                <el-table-column prop="chiefComplaint" label="主诉" min-width="180" />
+                <el-table-column prop="triageLevel" label="级别" width="100" />
+              </el-table>
+              <el-pagination
+                class="table-pagination"
+                layout="prev, pager, next, total"
+                :current-page="pagers.triageRecords.page"
+                :page-size="pagers.triageRecords.limit"
+                :total="pagers.triageRecords.total"
+                @current-change="(page) => changePage('triageRecords', page, loadTriageRecords)"
+              />
+            </div>
+          </section>
+        </el-tab-pane>
+
+        <el-tab-pane label="入院管理" name="admissions">
+          <section class="single-column">
+            <div class="panel wide-panel">
+              <div class="panel-head">
+                <h3>入院列表</h3>
+                <div class="button-row">
+                  <el-button type="primary" @click="openInpatientDialog()">登记入院</el-button>
+                  <el-button @click="loadAdmissions">刷新</el-button>
+                </div>
+              </div>
+              <el-table :data="admissions" height="360">
+                <el-table-column prop="businessNo" label="住院号" min-width="130" />
+                <el-table-column prop="patientName" label="患者" min-width="90" />
+                <el-table-column prop="bedNo" label="床位" width="100" />
+                <el-table-column prop="status" label="状态" width="110" :formatter="statusFormatter" />
+                <el-table-column label="操作" width="100">
+                  <template #default="{ row }">
+                    <el-button link type="primary" @click.stop="openInpatientDialog(row)">办理出院</el-button>
+                  </template>
+                </el-table-column>
+              </el-table>
+              <el-pagination
+                class="table-pagination"
+                layout="prev, pager, next, total"
+                :current-page="pagers.admissions.page"
+                :page-size="pagers.admissions.limit"
+                :total="pagers.admissions.total"
+                @current-change="(page) => changePage('admissions', page, loadAdmissions)"
+              />
+            </div>
 
             <el-dialog v-model="adminDialogs.inpatient" title="分诊入院" width="620px">
               <el-form class="dialog-form" label-position="top" :model="triageForm">
@@ -460,6 +471,66 @@
                 </div>
               </el-form>
             </el-dialog>
+          </section>
+        </el-tab-pane>
+
+        <el-tab-pane label="出院记录" name="discharges">
+          <section class="single-column">
+            <div class="panel wide-panel">
+              <div class="panel-head">
+                <h3>出院记录</h3>
+                <el-button @click="loadDischarges">刷新</el-button>
+              </div>
+              <el-table :data="discharges" height="360">
+                <el-table-column prop="dischargeNo" label="出院号" min-width="130" />
+                <el-table-column prop="patientName" label="患者" width="110" />
+                <el-table-column prop="dischargeTime" label="出院时间" min-width="150" />
+                <el-table-column prop="dischargeReason" label="出院原因" min-width="160" />
+              </el-table>
+              <el-pagination
+                class="table-pagination"
+                layout="prev, pager, next, total"
+                :current-page="pagers.discharges.page"
+                :page-size="pagers.discharges.limit"
+                :total="pagers.discharges.total"
+                @current-change="(page) => changePage('discharges', page, loadDischarges)"
+              />
+            </div>
+          </section>
+        </el-tab-pane>
+
+        <el-tab-pane label="病历模板" name="templates">
+          <section class="single-column">
+            <div class="panel wide-panel">
+              <div class="panel-head">
+                <h3>病历模板</h3>
+                <div class="button-row">
+                  <el-button type="primary" @click="openTemplateDialog('create')">新增模板</el-button>
+                  <el-button :disabled="!selectedTemplate" @click="openTemplateDialog('edit')">编辑模板</el-button>
+                  <el-button :disabled="!selectedTemplate" type="danger" plain @click="deleteTemplateAction">删除模板</el-button>
+                  <el-button :disabled="!selectedTemplate" @click="applyTemplateToRecord">套用到病历</el-button>
+                  <el-button @click="loadTemplates">刷新</el-button>
+                </div>
+              </div>
+              <el-table :data="templates" height="180" @row-click="selectTemplate">
+                <el-table-column prop="templateName" label="模板" min-width="140" />
+                <el-table-column prop="templateType" label="类型" width="100" />
+                <el-table-column prop="status" label="状态" width="90" :formatter="statusFormatter" />
+                <el-table-column label="操作" width="90">
+                  <template #default="{ row }">
+                    <el-button link type="primary" @click.stop="openTemplateDialog('edit', row)">编辑</el-button>
+                  </template>
+                </el-table-column>
+              </el-table>
+              <el-pagination
+                class="table-pagination"
+                layout="prev, pager, next, total"
+                :current-page="pagers.templates.page"
+                :page-size="pagers.templates.limit"
+                :total="pagers.templates.total"
+                @current-change="(page) => changePage('templates', page, loadTemplates)"
+              />
+            </div>
 
             <el-dialog v-model="adminDialogs.template" :title="templateDialogMode === 'edit' ? '编辑模板' : '新增模板'" width="560px">
               <el-form class="dialog-form" label-position="top" :model="templateForm">
@@ -482,22 +553,19 @@
           </section>
         </el-tab-pane>
 
-        <el-tab-pane label="诊疗管理" name="clinical">
+        <el-tab-pane label="医嘱管理" name="orders">
           <section class="single-column">
             <div class="panel wide-panel">
               <div class="panel-head">
-                <h3>诊疗列表</h3>
+                <h3>医嘱列表</h3>
                 <div class="button-row">
                   <el-button type="primary" @click="openOrderDialog('create')">新增医嘱</el-button>
                   <el-button :disabled="!selectedOrder" @click="openOrderDialog('edit')">编辑医嘱</el-button>
                   <el-button :disabled="!selectedOrder" type="danger" plain @click="deleteOrderAction">删除医嘱</el-button>
-                  <el-button type="primary" @click="openPrescriptionDialog('create')">新增处方</el-button>
-                  <el-button :disabled="!selectedPrescription" @click="openPrescriptionDialog('edit')">编辑处方</el-button>
-                  <el-button type="primary" @click="openTestRequestDialog('create')">新增检查</el-button>
-                  <el-button :disabled="!selectedTestRequest" @click="openTestRequestDialog('edit')">编辑检查</el-button>
+                  <el-button @click="loadOrders">刷新</el-button>
                 </div>
               </div>
-              <el-table :data="orders" height="160" @row-click="selectOrder">
+              <el-table :data="orders" height="360" @row-click="selectOrder">
                 <el-table-column prop="content" label="医嘱" min-width="160" />
                 <el-table-column prop="status" label="状态" width="100" :formatter="statusFormatter" />
                 <el-table-column label="操作" width="170">
@@ -515,44 +583,6 @@
                 :page-size="pagers.orders.limit"
                 :total="pagers.orders.total"
                 @current-change="(page) => changePage('orders', page, loadOrders)"
-              />
-              <el-table :data="prescriptions" height="140" @row-click="selectPrescription">
-                <el-table-column prop="medicineName" label="处方" min-width="150" />
-                <el-table-column prop="quantity" label="数量" width="90" />
-                <el-table-column prop="status" label="状态" width="100" :formatter="statusFormatter" />
-                <el-table-column label="操作" width="150">
-                  <template #default="{ row }">
-                    <el-button link type="primary" @click.stop="openPrescriptionDialog('edit', row)">编辑</el-button>
-                    <el-button link type="danger" @click.stop="selectPrescription(row); deletePrescriptionAction()">删除</el-button>
-                  </template>
-                </el-table-column>
-              </el-table>
-              <el-pagination
-                class="table-pagination"
-                layout="prev, pager, next, total"
-                :current-page="pagers.prescriptions.page"
-                :page-size="pagers.prescriptions.limit"
-                :total="pagers.prescriptions.total"
-                @current-change="(page) => changePage('prescriptions', page, loadPrescriptions)"
-              />
-              <el-table :data="testRequests" height="140" @row-click="selectTestRequest">
-                <el-table-column prop="testItem" label="检查" min-width="150" />
-                <el-table-column prop="status" label="状态" width="100" :formatter="statusFormatter" />
-                <el-table-column prop="resultContent" label="结果" min-width="150" />
-                <el-table-column label="操作" width="100">
-                  <template #default="{ row }">
-                    <el-button link type="primary" @click="auditTestAction(row)">审核</el-button>
-                    <el-button link @click.stop="openTestRequestDialog('edit', row)">编辑</el-button>
-                  </template>
-                </el-table-column>
-              </el-table>
-              <el-pagination
-                class="table-pagination"
-                layout="prev, pager, next, total"
-                :current-page="pagers.testRequests.page"
-                :page-size="pagers.testRequests.limit"
-                :total="pagers.testRequests.total"
-                @current-change="(page) => changePage('testRequests', page, loadTestRequests)"
               />
             </div>
 
@@ -574,6 +604,40 @@
                 </div>
               </el-form>
             </el-dialog>
+          </section>
+        </el-tab-pane>
+
+        <el-tab-pane label="处方管理" name="prescriptions">
+          <section class="single-column">
+            <div class="panel wide-panel">
+              <div class="panel-head">
+                <h3>处方列表</h3>
+                <div class="button-row">
+                  <el-button type="primary" @click="openPrescriptionDialog('create')">新增处方</el-button>
+                  <el-button :disabled="!selectedPrescription" @click="openPrescriptionDialog('edit')">编辑处方</el-button>
+                  <el-button @click="loadPrescriptions">刷新</el-button>
+                </div>
+              </div>
+              <el-table :data="prescriptions" height="360" @row-click="selectPrescription">
+                <el-table-column prop="medicineName" label="处方" min-width="150" />
+                <el-table-column prop="quantity" label="数量" width="90" />
+                <el-table-column prop="status" label="状态" width="100" :formatter="statusFormatter" />
+                <el-table-column label="操作" width="150">
+                  <template #default="{ row }">
+                    <el-button link type="primary" @click.stop="openPrescriptionDialog('edit', row)">编辑</el-button>
+                    <el-button link type="danger" @click.stop="selectPrescription(row); deletePrescriptionAction()">删除</el-button>
+                  </template>
+                </el-table-column>
+              </el-table>
+              <el-pagination
+                class="table-pagination"
+                layout="prev, pager, next, total"
+                :current-page="pagers.prescriptions.page"
+                :page-size="pagers.prescriptions.limit"
+                :total="pagers.prescriptions.total"
+                @current-change="(page) => changePage('prescriptions', page, loadPrescriptions)"
+              />
+            </div>
 
             <el-dialog v-model="adminDialogs.prescription" :title="prescriptionDialogMode === 'edit' ? '编辑处方' : '新增处方'" width="520px">
               <el-form class="dialog-form" label-position="top" :model="prescriptionForm">
@@ -590,6 +654,40 @@
                 </div>
               </el-form>
             </el-dialog>
+          </section>
+        </el-tab-pane>
+
+        <el-tab-pane label="检查申请" name="tests">
+          <section class="single-column">
+            <div class="panel wide-panel">
+              <div class="panel-head">
+                <h3>检查申请列表</h3>
+                <div class="button-row">
+                  <el-button type="primary" @click="openTestRequestDialog('create')">新增检查</el-button>
+                  <el-button :disabled="!selectedTestRequest" @click="openTestRequestDialog('edit')">编辑检查</el-button>
+                  <el-button @click="loadTestRequests">刷新</el-button>
+                </div>
+              </div>
+              <el-table :data="testRequests" height="360" @row-click="selectTestRequest">
+                <el-table-column prop="testItem" label="检查" min-width="150" />
+                <el-table-column prop="status" label="状态" width="100" :formatter="statusFormatter" />
+                <el-table-column prop="resultContent" label="结果" min-width="150" />
+                <el-table-column label="操作" width="100">
+                  <template #default="{ row }">
+                    <el-button link type="primary" @click="auditTestAction(row)">审核</el-button>
+                    <el-button link @click.stop="openTestRequestDialog('edit', row)">编辑</el-button>
+                  </template>
+                </el-table-column>
+              </el-table>
+              <el-pagination
+                class="table-pagination"
+                layout="prev, pager, next, total"
+                :current-page="pagers.testRequests.page"
+                :page-size="pagers.testRequests.limit"
+                :total="pagers.testRequests.total"
+                @current-change="(page) => changePage('testRequests', page, loadTestRequests)"
+              />
+            </div>
 
             <el-dialog v-model="adminDialogs.testRequest" :title="testRequestDialogMode === 'edit' ? '编辑检查' : '新增检查'" width="560px">
               <el-form class="dialog-form" label-position="top" :model="testRequestForm">
@@ -612,11 +710,11 @@
           </section>
         </el-tab-pane>
 
-        <el-tab-pane label="审核归档" name="workflow">
+        <el-tab-pane label="审核任务" name="workflow-tasks">
           <section class="single-column">
             <div class="panel">
               <div class="panel-head">
-                <h3>审核与归档</h3>
+                <h3>审核任务</h3>
                 <div class="button-row">
                   <el-button type="primary" @click="adminDialogs.workflow = true">创建审核任务</el-button>
                   <el-button @click="loadWorkflowTasks">刷新任务</el-button>
@@ -639,51 +737,6 @@
                 :page-size="pagers.workflowTasks.limit"
                 :total="pagers.workflowTasks.total"
                 @current-change="(page) => changePage('workflowTasks', page, loadWorkflowTasks)"
-              />
-              <el-table :data="workflowAuditRecords" height="180">
-                <el-table-column prop="taskNo" label="任务号" min-width="130" />
-                <el-table-column prop="auditorName" label="审核人" width="100" />
-                <el-table-column prop="auditResult" label="结果" width="100" :formatter="statusFormatter" />
-                <el-table-column prop="auditOpinion" label="意见" min-width="150" />
-              </el-table>
-              <el-pagination
-                class="table-pagination"
-                layout="prev, pager, next, total"
-                :current-page="pagers.workflowAuditRecords.page"
-                :page-size="pagers.workflowAuditRecords.limit"
-                :total="pagers.workflowAuditRecords.total"
-                @current-change="(page) => changePage('workflowAuditRecords', page, loadWorkflowAuditRecords)"
-              />
-              <el-table :data="archiveApplications" height="220">
-                <el-table-column prop="recordNo" label="病历号" min-width="130" />
-                <el-table-column prop="patientName" label="患者" min-width="90" />
-                <el-table-column prop="status" label="状态" width="100" :formatter="statusFormatter" />
-                <el-table-column label="操作" width="100">
-                  <template #default="{ row }">
-                    <el-button link type="primary" @click="auditArchiveAction(row)">归档</el-button>
-                  </template>
-                </el-table-column>
-              </el-table>
-              <el-pagination
-                class="table-pagination"
-                layout="prev, pager, next, total"
-                :current-page="pagers.archiveApplications.page"
-                :page-size="pagers.archiveApplications.limit"
-                :total="pagers.archiveApplications.total"
-                @current-change="(page) => changePage('archiveApplications', page, loadArchiveApplications)"
-              />
-              <el-table :data="archives" height="180">
-                <el-table-column prop="recordNo" label="归档病历号" min-width="130" />
-                <el-table-column prop="patientName" label="患者" min-width="90" />
-                <el-table-column prop="status" label="状态" width="100" :formatter="statusFormatter" />
-              </el-table>
-              <el-pagination
-                class="table-pagination"
-                layout="prev, pager, next, total"
-                :current-page="pagers.archives.page"
-                :page-size="pagers.archives.limit"
-                :total="pagers.archives.total"
-                @current-change="(page) => changePage('archives', page, loadArchives)"
               />
             </div>
 
@@ -709,6 +762,84 @@
                 </div>
               </el-form>
             </el-dialog>
+          </section>
+        </el-tab-pane>
+
+        <el-tab-pane label="审核记录" name="workflow-audits">
+          <section class="single-column">
+            <div class="panel">
+              <div class="panel-head">
+                <h3>审核记录</h3>
+                <el-button @click="loadWorkflowAuditRecords">刷新</el-button>
+              </div>
+              <el-table :data="workflowAuditRecords" height="360">
+                <el-table-column prop="taskNo" label="任务号" min-width="130" />
+                <el-table-column prop="auditorName" label="审核人" width="100" />
+                <el-table-column prop="auditResult" label="结果" width="100" :formatter="statusFormatter" />
+                <el-table-column prop="auditOpinion" label="意见" min-width="150" />
+              </el-table>
+              <el-pagination
+                class="table-pagination"
+                layout="prev, pager, next, total"
+                :current-page="pagers.workflowAuditRecords.page"
+                :page-size="pagers.workflowAuditRecords.limit"
+                :total="pagers.workflowAuditRecords.total"
+                @current-change="(page) => changePage('workflowAuditRecords', page, loadWorkflowAuditRecords)"
+              />
+            </div>
+          </section>
+        </el-tab-pane>
+
+        <el-tab-pane label="归档申请" name="archive-applications">
+          <section class="single-column">
+            <div class="panel">
+              <div class="panel-head">
+                <h3>归档申请</h3>
+                <el-button @click="loadArchiveApplications">刷新</el-button>
+              </div>
+              <el-table :data="archiveApplications" height="360">
+                <el-table-column prop="recordNo" label="病历号" min-width="130" />
+                <el-table-column prop="patientName" label="患者" min-width="90" />
+                <el-table-column prop="status" label="状态" width="100" :formatter="statusFormatter" />
+                <el-table-column label="操作" width="100">
+                  <template #default="{ row }">
+                    <el-button link type="primary" @click="auditArchiveAction(row)">归档</el-button>
+                  </template>
+                </el-table-column>
+              </el-table>
+              <el-pagination
+                class="table-pagination"
+                layout="prev, pager, next, total"
+                :current-page="pagers.archiveApplications.page"
+                :page-size="pagers.archiveApplications.limit"
+                :total="pagers.archiveApplications.total"
+                @current-change="(page) => changePage('archiveApplications', page, loadArchiveApplications)"
+              />
+            </div>
+          </section>
+        </el-tab-pane>
+
+        <el-tab-pane label="归档记录" name="archives">
+          <section class="single-column">
+            <div class="panel">
+              <div class="panel-head">
+                <h3>归档记录</h3>
+                <el-button @click="loadArchives">刷新</el-button>
+              </div>
+              <el-table :data="archives" height="360">
+                <el-table-column prop="recordNo" label="归档病历号" min-width="130" />
+                <el-table-column prop="patientName" label="患者" min-width="90" />
+                <el-table-column prop="status" label="状态" width="100" :formatter="statusFormatter" />
+              </el-table>
+              <el-pagination
+                class="table-pagination"
+                layout="prev, pager, next, total"
+                :current-page="pagers.archives.page"
+                :page-size="pagers.archives.limit"
+                :total="pagers.archives.total"
+                @current-change="(page) => changePage('archives', page, loadArchives)"
+              />
+            </div>
           </section>
         </el-tab-pane>
 
@@ -763,19 +894,17 @@
           </section>
         </el-tab-pane>
 
-        <el-tab-pane label="系统内容" name="system">
+        <el-tab-pane label="资讯管理" name="news">
           <section class="single-column">
             <div class="panel wide-panel">
               <div class="panel-head">
-                <h3>资讯、轮播、留言与日志</h3>
+                <h3>资讯列表</h3>
                 <div class="button-row">
                   <el-button type="primary" @click="adminDialogs.news = true">发布资讯</el-button>
-                  <el-button type="primary" @click="adminDialogs.carousel = true">新增轮播</el-button>
-                  <el-button @click="adminDialogs.config = true">系统配置</el-button>
-                  <el-button @click="adminDialogs.menu = true">菜单管理</el-button>
+                  <el-button @click="loadNews">刷新</el-button>
                 </div>
               </div>
-              <el-table :data="newsItems" height="120">
+              <el-table :data="newsItems" height="360">
                 <el-table-column prop="title" label="资讯标题" min-width="140" />
                 <el-table-column prop="category" label="分类" width="100" />
                 <el-table-column prop="publishStatus" label="发布状态" width="110" :formatter="statusFormatter" />
@@ -788,58 +917,6 @@
                 :total="pagers.newsItems.total"
                 @current-change="(page) => changePage('newsItems', page, loadNews)"
               />
-              <el-table :data="carousels" height="130">
-                <el-table-column prop="title" label="轮播标题" min-width="140" />
-                <el-table-column prop="imageUrl" label="图片" min-width="160" />
-                <el-table-column label="操作" width="90">
-                  <template #default="{ row }">
-                    <el-button link type="danger" @click="deleteCarouselAction(row)">停用</el-button>
-                  </template>
-                </el-table-column>
-              </el-table>
-              <el-pagination
-                class="table-pagination"
-                layout="prev, pager, next, total"
-                :current-page="pagers.carousels.page"
-                :page-size="pagers.carousels.limit"
-                :total="pagers.carousels.total"
-                @current-change="(page) => changePage('carousels', page, loadCarousels)"
-              />
-              <el-table :data="messages" height="150">
-                <el-table-column prop="title" label="留言" min-width="140" />
-                <el-table-column prop="userName" label="咨询人" width="100" />
-                <el-table-column label="操作" width="100">
-                  <template #default="{ row }">
-                    <el-button link type="primary" @click="replyMessageAction(row)">回复</el-button>
-                  </template>
-                </el-table-column>
-              </el-table>
-              <el-pagination
-                class="table-pagination"
-                layout="prev, pager, next, total"
-                :current-page="pagers.messages.page"
-                :page-size="pagers.messages.limit"
-                :total="pagers.messages.total"
-                @current-change="(page) => changePage('messages', page, loadMessages)"
-              />
-              <el-table :data="syslogs" height="130">
-                <el-table-column prop="operation" label="操作" min-width="140" />
-                <el-table-column prop="requestUri" label="请求地址" min-width="160" />
-                <el-table-column prop="username" label="操作人" width="110" />
-              </el-table>
-              <el-pagination
-                class="table-pagination"
-                layout="prev, pager, next, total"
-                :current-page="pagers.syslogs.page"
-                :page-size="pagers.syslogs.limit"
-                :total="pagers.syslogs.total"
-                @current-change="(page) => changePage('syslogs', page, loadSyslogs)"
-              />
-              <el-descriptions v-if="menuSnapshot" :column="1" border class="menu-preview">
-                <el-descriptions-item label="角色">{{ menuSnapshot.roleCode }}</el-descriptions-item>
-                <el-descriptions-item label="名称">{{ menuSnapshot.name }}</el-descriptions-item>
-                <el-descriptions-item label="菜单JSON">{{ menuSnapshot.menujson }}</el-descriptions-item>
-              </el-descriptions>
             </div>
 
             <el-dialog v-model="adminDialogs.news" title="发布资讯" width="560px">
@@ -859,6 +936,37 @@
                 </div>
               </el-form>
             </el-dialog>
+          </section>
+        </el-tab-pane>
+
+        <el-tab-pane label="轮播管理" name="carousels">
+          <section class="single-column">
+            <div class="panel wide-panel">
+              <div class="panel-head">
+                <h3>轮播列表</h3>
+                <div class="button-row">
+                  <el-button type="primary" @click="adminDialogs.carousel = true">新增轮播</el-button>
+                  <el-button @click="loadCarousels">刷新</el-button>
+                </div>
+              </div>
+              <el-table :data="carousels" height="360">
+                <el-table-column prop="title" label="轮播标题" min-width="140" />
+                <el-table-column prop="imageUrl" label="图片" min-width="160" />
+                <el-table-column label="操作" width="90">
+                  <template #default="{ row }">
+                    <el-button link type="danger" @click="deleteCarouselAction(row)">停用</el-button>
+                  </template>
+                </el-table-column>
+              </el-table>
+              <el-pagination
+                class="table-pagination"
+                layout="prev, pager, next, total"
+                :current-page="pagers.carousels.page"
+                :page-size="pagers.carousels.limit"
+                :total="pagers.carousels.total"
+                @current-change="(page) => changePage('carousels', page, loadCarousels)"
+              />
+            </div>
 
             <el-dialog v-model="adminDialogs.carousel" title="新增轮播" width="560px">
               <el-form class="dialog-form" label-position="top" :model="carouselForm">
@@ -877,8 +985,67 @@
                 </div>
               </el-form>
             </el-dialog>
+          </section>
+        </el-tab-pane>
 
-            <el-dialog v-model="adminDialogs.config" title="系统配置" width="520px">
+        <el-tab-pane label="留言管理" name="messages">
+          <section class="single-column">
+            <div class="panel wide-panel">
+              <div class="panel-head">
+                <h3>留言列表</h3>
+                <el-button @click="loadMessages">刷新</el-button>
+              </div>
+              <el-table :data="messages" height="360">
+                <el-table-column prop="title" label="留言" min-width="140" />
+                <el-table-column prop="userName" label="咨询人" width="100" />
+                <el-table-column label="操作" width="100">
+                  <template #default="{ row }">
+                    <el-button link type="primary" @click="replyMessageAction(row)">回复</el-button>
+                  </template>
+                </el-table-column>
+              </el-table>
+              <el-pagination
+                class="table-pagination"
+                layout="prev, pager, next, total"
+                :current-page="pagers.messages.page"
+                :page-size="pagers.messages.limit"
+                :total="pagers.messages.total"
+                @current-change="(page) => changePage('messages', page, loadMessages)"
+              />
+            </div>
+          </section>
+        </el-tab-pane>
+
+        <el-tab-pane label="系统日志" name="syslogs">
+          <section class="single-column">
+            <div class="panel wide-panel">
+              <div class="panel-head">
+                <h3>系统日志</h3>
+                <el-button @click="loadSyslogs">刷新</el-button>
+              </div>
+              <el-table :data="syslogs" height="360">
+                <el-table-column prop="operation" label="操作" min-width="140" />
+                <el-table-column prop="requestUri" label="请求地址" min-width="160" />
+                <el-table-column prop="username" label="操作人" width="110" />
+              </el-table>
+              <el-pagination
+                class="table-pagination"
+                layout="prev, pager, next, total"
+                :current-page="pagers.syslogs.page"
+                :page-size="pagers.syslogs.limit"
+                :total="pagers.syslogs.total"
+                @current-change="(page) => changePage('syslogs', page, loadSyslogs)"
+              />
+            </div>
+          </section>
+        </el-tab-pane>
+
+        <el-tab-pane label="系统配置" name="config">
+          <section class="single-column">
+            <div class="panel">
+              <div class="panel-head">
+                <h3>系统配置</h3>
+              </div>
               <el-form class="dialog-form" label-position="top" :model="configForm">
                 <el-form-item label="配置键">
                   <el-input v-model="configForm.configKey" />
@@ -887,13 +1054,20 @@
                   <el-input v-model="configForm.configValue" />
                 </el-form-item>
                 <div class="dialog-footer">
-                  <el-button @click="adminDialogs.config = false">取消</el-button>
                   <el-button type="primary" @click="saveConfigAction">保存配置</el-button>
                 </div>
               </el-form>
-            </el-dialog>
+            </div>
+          </section>
+        </el-tab-pane>
 
-            <el-dialog v-model="adminDialogs.menu" title="菜单管理" width="620px">
+        <el-tab-pane label="菜单管理" name="menus">
+          <section class="single-column">
+            <div class="panel wide-panel">
+              <div class="panel-head">
+                <h3>菜单管理</h3>
+                <el-button @click="loadMenuAction()">读取菜单</el-button>
+              </div>
               <el-form class="dialog-form" label-position="top" :model="menuForm">
                 <el-form-item label="角色编码">
                   <el-select v-model="menuForm.roleCode">
@@ -911,12 +1085,15 @@
                   <el-input v-model="menuForm.menujson" type="textarea" :rows="4" />
                 </el-form-item>
                 <div class="dialog-footer">
-                  <el-button @click="loadMenuAction()">读取菜单</el-button>
-                  <el-button @click="adminDialogs.menu = false">取消</el-button>
                   <el-button type="primary" @click="saveMenuAction">保存菜单</el-button>
                 </div>
               </el-form>
-            </el-dialog>
+              <el-descriptions v-if="menuSnapshot" :column="1" border class="menu-preview">
+                <el-descriptions-item label="角色">{{ menuSnapshot.roleCode }}</el-descriptions-item>
+                <el-descriptions-item label="名称">{{ menuSnapshot.name }}</el-descriptions-item>
+                <el-descriptions-item label="菜单JSON">{{ menuSnapshot.menujson }}</el-descriptions-item>
+              </el-descriptions>
+            </div>
           </section>
         </el-tab-pane>
 
@@ -976,17 +1153,58 @@ import { createNews, fetchNews, fetchMessages, replyMessage, createCarousel, fet
 import { ocrMedicalRecord, recommendMedicine, auditPrescription, smartSearch } from './api/ai';
 import { AUTH_EVENT_NAME, clearAuthState, getStoredToken, readStoredSession, saveAuthState } from './utils/session';
 
-const navItems = [
+const navGroups = [
   { name: 'dashboard', label: '仪表盘', path: '/dashboard' },
   { name: 'appointments', label: '预约管理', path: '/appointments' },
-  { name: 'users', label: '用户管理', path: '/users' },
-  { name: 'records', label: '就诊病历', path: '/records' },
-  { name: 'clinical', label: '诊疗管理', path: '/clinical' },
-  { name: 'workflow', label: '审核归档', path: '/workflow' },
+  {
+    label: '用户科室',
+    children: [
+      { name: 'departments', label: '科室管理', path: '/departments' },
+      { name: 'managed-users', label: '人员管理', path: '/managed-users' }
+    ]
+  },
+  {
+    label: '就诊病历',
+    children: [
+      { name: 'records', label: '病历列表', path: '/records' },
+      { name: 'triage', label: '分诊记录', path: '/triage' },
+      { name: 'admissions', label: '入院管理', path: '/admissions' },
+      { name: 'discharges', label: '出院记录', path: '/discharges' },
+      { name: 'templates', label: '病历模板', path: '/templates' }
+    ]
+  },
+  {
+    label: '诊疗管理',
+    children: [
+      { name: 'orders', label: '医嘱管理', path: '/orders' },
+      { name: 'prescriptions', label: '处方管理', path: '/prescriptions' },
+      { name: 'tests', label: '检查申请', path: '/tests' }
+    ]
+  },
+  {
+    label: '审核归档',
+    children: [
+      { name: 'workflow-tasks', label: '审核任务', path: '/workflow-tasks' },
+      { name: 'workflow-audits', label: '审核记录', path: '/workflow-audits' },
+      { name: 'archive-applications', label: '归档申请', path: '/archive-applications' },
+      { name: 'archives', label: '归档记录', path: '/archives' }
+    ]
+  },
   { name: 'billing', label: '费用系统', path: '/billing' },
-  { name: 'system', label: '系统内容', path: '/system' },
+  {
+    label: '系统内容',
+    children: [
+      { name: 'news', label: '资讯管理', path: '/news' },
+      { name: 'carousels', label: '轮播管理', path: '/carousels' },
+      { name: 'messages', label: '留言管理', path: '/messages' },
+      { name: 'syslogs', label: '系统日志', path: '/syslogs' },
+      { name: 'config', label: '系统配置', path: '/config' },
+      { name: 'menus', label: '菜单管理', path: '/menus' }
+    ]
+  },
   { name: 'ai', label: 'AI 智能', path: '/ai' }
 ];
+const navItems = navGroups.flatMap((group) => group.children || [group]);
 
 const route = useRoute();
 const router = useRouter();
@@ -2625,32 +2843,72 @@ function loadAdminRouteData(tabName) {
     return;
   }
 
-  if (tab === 'users') {
+  if (tab === 'departments') {
     loadDepartments();
+    return;
+  }
+
+  if (tab === 'managed-users') {
     loadUsers();
     return;
   }
 
   if (tab === 'records') {
     loadRecords();
+    return;
+  }
+
+  if (tab === 'triage') {
     loadTriageRecords();
+    return;
+  }
+
+  if (tab === 'admissions') {
     loadAdmissions();
+    return;
+  }
+
+  if (tab === 'discharges') {
     loadDischarges();
+    return;
+  }
+
+  if (tab === 'templates') {
     loadTemplates();
     return;
   }
 
-  if (tab === 'clinical') {
+  if (tab === 'orders') {
     loadOrders();
+    return;
+  }
+
+  if (tab === 'prescriptions') {
     loadPrescriptions();
+    return;
+  }
+
+  if (tab === 'tests') {
     loadTestRequests();
     return;
   }
 
-  if (tab === 'workflow') {
+  if (tab === 'workflow-tasks') {
     loadWorkflowTasks();
+    return;
+  }
+
+  if (tab === 'workflow-audits') {
     loadWorkflowAuditRecords();
+    return;
+  }
+
+  if (tab === 'archive-applications') {
     loadArchiveApplications();
+    return;
+  }
+
+  if (tab === 'archives') {
     loadArchives();
     return;
   }
@@ -2660,11 +2918,27 @@ function loadAdminRouteData(tabName) {
     return;
   }
 
-  if (tab === 'system') {
+  if (tab === 'news') {
     loadNews();
+    return;
+  }
+
+  if (tab === 'messages') {
     loadMessages();
+    return;
+  }
+
+  if (tab === 'carousels') {
     loadCarousels();
+    return;
+  }
+
+  if (tab === 'menus') {
     loadMenuAction({ silent: true });
+    return;
+  }
+
+  if (tab === 'syslogs') {
     loadSyslogs();
   }
 }
@@ -2802,7 +3076,7 @@ onBeforeUnmount(() => {
 
 .sidebar nav {
   display: grid;
-  gap: 0;
+  gap: 4px;
   padding-top: 22px;
 }
 
@@ -2822,6 +3096,23 @@ onBeforeUnmount(() => {
 .sidebar button:hover {
   color: #ffffff;
   background: rgba(255, 255, 255, 0.1);
+}
+
+.sidebar-group {
+  display: grid;
+  gap: 2px;
+}
+
+.sidebar-group p {
+  margin: 10px 18px 4px;
+  color: rgba(255, 255, 255, 0.58);
+  font-size: 12px;
+}
+
+.sidebar button.sidebar-child {
+  min-height: 32px;
+  padding-left: 34px;
+  font-size: 13px;
 }
 
 .workspace {

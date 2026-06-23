@@ -19,7 +19,16 @@ const routes = [
   },
   {
     path: '/users',
-    name: 'users',
+    redirect: '/departments'
+  },
+  {
+    path: '/departments',
+    name: 'departments',
+    component: pageShell
+  },
+  {
+    path: '/managed-users',
+    name: 'managed-users',
     component: pageShell
   },
   {
@@ -28,13 +37,66 @@ const routes = [
     component: pageShell
   },
   {
+    path: '/triage',
+    name: 'triage',
+    component: pageShell
+  },
+  {
+    path: '/admissions',
+    name: 'admissions',
+    component: pageShell
+  },
+  {
+    path: '/discharges',
+    name: 'discharges',
+    component: pageShell
+  },
+  {
+    path: '/templates',
+    name: 'templates',
+    component: pageShell
+  },
+  {
     path: '/clinical',
-    name: 'clinical',
+    redirect: '/orders'
+  },
+  {
+    path: '/orders',
+    name: 'orders',
+    component: pageShell
+  },
+  {
+    path: '/prescriptions',
+    name: 'prescriptions',
+    component: pageShell
+  },
+  {
+    path: '/tests',
+    name: 'tests',
     component: pageShell
   },
   {
     path: '/workflow',
-    name: 'workflow',
+    redirect: '/workflow-tasks'
+  },
+  {
+    path: '/workflow-tasks',
+    name: 'workflow-tasks',
+    component: pageShell
+  },
+  {
+    path: '/workflow-audits',
+    name: 'workflow-audits',
+    component: pageShell
+  },
+  {
+    path: '/archive-applications',
+    name: 'archive-applications',
+    component: pageShell
+  },
+  {
+    path: '/archives',
+    name: 'archives',
     component: pageShell
   },
   {
@@ -44,7 +106,36 @@ const routes = [
   },
   {
     path: '/system',
-    name: 'system',
+    redirect: '/news'
+  },
+  {
+    path: '/news',
+    name: 'news',
+    component: pageShell
+  },
+  {
+    path: '/carousels',
+    name: 'carousels',
+    component: pageShell
+  },
+  {
+    path: '/messages',
+    name: 'messages',
+    component: pageShell
+  },
+  {
+    path: '/syslogs',
+    name: 'syslogs',
+    component: pageShell
+  },
+  {
+    path: '/config',
+    name: 'config',
+    component: pageShell
+  },
+  {
+    path: '/menus',
+    name: 'menus',
     component: pageShell
   },
   {
