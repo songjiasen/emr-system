@@ -293,7 +293,7 @@
                   <el-button type="primary" @click="openRecordDialog('create')">新增病历</el-button>
                   <el-button :disabled="!selectedRecord" @click="openRecordDialog('edit')">编辑病历</el-button>
                   <el-button :disabled="!selectedRecord" type="danger" plain @click="deleteRecordAction">删除病历</el-button>
-                  <el-button @click="adminDialogs.inpatient = true">分诊入院</el-button>
+                  <el-button @click="openInpatientDialog()">分诊入院</el-button>
                   <el-button @click="createArchiveApplicationAction">申请归档</el-button>
                   <el-button @click="loadRecords">刷新</el-button>
                 </div>
@@ -327,8 +327,8 @@
                 <el-table-column prop="bedNo" label="床位" width="100" />
                 <el-table-column prop="status" label="状态" width="110" :formatter="statusFormatter" />
                 <el-table-column label="操作" width="100">
-                  <template #default>
-                    <el-button link type="primary" @click="adminDialogs.inpatient = true">办理出院</el-button>
+                  <template #default="{ row }">
+                    <el-button link type="primary" @click.stop="openInpatientDialog(row)">办理出院</el-button>
                   </template>
                 </el-table-column>
               </el-table>
@@ -996,6 +996,7 @@ const selectedDepartment = ref(null);
 const selectedUser = ref(null);
 const selectedRecord = ref(null);
 const selectedRecordDetail = ref(null);
+const selectedAdmission = ref(null);
 const selectedTemplate = ref(null);
 const selectedOrder = ref(null);
 const selectedPrescription = ref(null);
@@ -1134,7 +1135,7 @@ function makeDefaultNewsForm() {
 }
 
 function makeDefaultCarouselForm() {
-  return { title: '智慧医院服务', imageUrl: '/uploads/banner-emr.png', linkUrl: '/news/1', sortNo: 1 };
+  return { title: '安心医疗服务', imageUrl: '/uploads/banner-emr.png', linkUrl: '/news/1', sortNo: 1 };
 }
 
 function makeDefaultConfigForm() {
@@ -1337,6 +1338,7 @@ function clearAdminWorkspace() {
   selectedUser.value = null;
   selectedRecord.value = null;
   selectedRecordDetail.value = null;
+  selectedAdmission.value = null;
   selectedTemplate.value = null;
   selectedOrder.value = null;
   selectedPrescription.value = null;
@@ -1526,6 +1528,28 @@ function openRecordDialog(mode, row = null) {
   adminDialogs.record = true;
 }
 
+function openInpatientDialog(row = null) {
+  selectedAdmission.value = row;
+  if (row) {
+    admissionForm.value = {
+      patientId: row.patientId || 1,
+      patientName: row.patientName || '患者演示',
+      doctorId: row.doctorId || 1,
+      doctorName: row.doctorName || '王医生',
+      nurseId: row.nurseId || 1,
+      nurseName: row.nurseName || '护士演示',
+      wardNo: row.wardNo || 'A1',
+      bedNo: row.bedNo || '',
+      admissionTime: row.admissionTime || '2026-06-22 14:00',
+      reason: row.reason || '观察治疗'
+    };
+  } else {
+    admissionForm.value = makeDefaultAdmissionForm();
+    triageForm.value = makeDefaultTriageForm();
+  }
+  adminDialogs.inpatient = true;
+}
+
 function openTemplateDialog(mode, row = null) {
   templateDialogMode.value = mode;
   if (mode === 'edit') {
@@ -1685,6 +1709,8 @@ async function loadUsers() {
  */
 function handleUserTypeChange() {
   pagers.users.page = 1;
+  selectedUser.value = null;
+  userForm.value = makeDefaultUserForm();
   loadUsers();
 }
 
@@ -1814,9 +1840,9 @@ async function loadDischarges() {
 }
 
 async function dischargeAdmissionAction() {
-  const admission = admissions.value[0];
+  const admission = selectedAdmission.value;
   if (!admission) {
-    ElMessage.warning('请先创建或刷新一条入院记录');
+    ElMessage.warning('请先在住院列表选择一条入院记录');
     return;
   }
 
@@ -1824,6 +1850,7 @@ async function dischargeAdmissionAction() {
     await dischargeAdmission(admission.id, dischargeForm.value);
     await loadAdmissions();
     loadDischarges();
+    selectedAdmission.value = null;
     adminDialogs.inpatient = false;
     ElMessage.success('出院办理完成');
   } catch (error) {

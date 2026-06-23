@@ -10,7 +10,7 @@
     <packaging>pom</packaging>
 
     <name>emr-backend</name>
-    <description>电子病历管理系统后端微服务父工程</description>
+    <description>安心医疗系统后端微服务父工程</description>
 
     <modules>
         <module>emr-common</module>

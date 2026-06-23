@@ -67,7 +67,7 @@
         </button>
       </nav>
       <div class="session">
-        <span class="avatar">{{ session.name.slice(0, 1) }}</span>
+        <span class="avatar">{{ patientAvatarText }}</span>
         <span>{{ session.name }}</span>
         <el-tag type="success">{{ session.roleCode }}</el-tag>
         <el-button v-if="hasPatientToken" link type="primary" @click="logoutPatientAction">退出</el-button>
@@ -553,6 +553,7 @@ const patientPageMeta = {
 
 const patientPageTitle = computed(() => patientPageMeta[activeTab.value]?.[0] || '安心医疗');
 const patientPageSubtitle = computed(() => patientPageMeta[activeTab.value]?.[1] || '为您提供贴心医疗服务');
+const patientAvatarText = computed(() => String(session.value.name || session.value.username || '患').slice(0, 1));
 
 function unwrap(response) {
   const body = response?.data;
