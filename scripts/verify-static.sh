@@ -11,7 +11,9 @@ echo "检查前端 JS 语法..."
 find frontend -name '*.js' -exec node --check {} \;
 node --check scripts/verify-demo-surface.mjs
 node --check scripts/verify-vue-scripts.mjs
+node --check scripts/verify-windows-powershell.mjs
 node scripts/verify-vue-scripts.mjs
+node scripts/verify-windows-powershell.mjs
 
 echo "检查后端 POM XML..."
 python3 - <<'PY'

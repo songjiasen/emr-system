@@ -157,7 +157,7 @@ function Wait-HttpOk {
     }
 
     Write-Host ""
-    Write-Host "Last logs for $Name:" -ForegroundColor Yellow
+    Write-Host "Last logs for ${Name}:" -ForegroundColor Yellow
     Get-ChildItem $LogDir -Filter "$Name.*.log" -ErrorAction SilentlyContinue | ForEach-Object {
         Write-Host "--- $($_.Name) ---" -ForegroundColor Yellow
         Get-Content $_.FullName -Tail 40 -ErrorAction SilentlyContinue
