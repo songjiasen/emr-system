@@ -1,0 +1,15 @@
+server:
+  port: 8109
+
+spring:
+  application:
+    name: emr-ai-service
+  datasource:
+    url: ${EMR_AI_DB_URL:jdbc:mysql://localhost:3306/emr_ai?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai}
+    username: ${EMR_AI_DB_USERNAME:root}
+    password: ${EMR_AI_DB_PASSWORD:root}
+    driver-class-name: ${EMR_AI_DB_DRIVER:com.mysql.cj.jdbc.Driver}
+
+mybatis-plus:
+  configuration:
+    map-underscore-to-camel-case: true

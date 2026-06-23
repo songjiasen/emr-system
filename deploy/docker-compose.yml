@@ -1,0 +1,238 @@
+services:
+  mysql:
+    image: mysql:5.7
+    container_name: emr-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: 123456
+    ports:
+      - "3306:3306"
+    volumes:
+      - ./mysql/init:/docker-entrypoint-initdb.d
+      - mysql-data:/var/lib/mysql
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-p123456"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  emr-auth-service:
+    image: maven:3.9.9-eclipse-temurin-17
+    restart: unless-stopped
+    working_dir: /workspace/backend
+    command: mvn -pl emr-auth-service -am spring-boot:run
+    volumes:
+      - ../backend:/workspace/backend
+      - maven-repo:/root/.m2
+    environment:
+      EMR_AUTH_DB_URL: jdbc:mysql://mysql:3306/emr_auth?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&useSSL=false
+      EMR_AUTH_DB_USERNAME: root
+      EMR_AUTH_DB_PASSWORD: 123456
+    ports:
+      - "8101:8101"
+    depends_on:
+      mysql:
+        condition: service_healthy
+
+  emr-user-service:
+    image: maven:3.9.9-eclipse-temurin-17
+    restart: unless-stopped
+    working_dir: /workspace/backend
+    command: mvn -pl emr-user-service -am spring-boot:run
+    volumes:
+      - ../backend:/workspace/backend
+      - maven-repo:/root/.m2
+    environment:
+      EMR_USER_DB_URL: jdbc:mysql://mysql:3306/emr_user?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&useSSL=false
+      EMR_USER_DB_USERNAME: root
+      EMR_USER_DB_PASSWORD: 123456
+    ports:
+      - "8102:8102"
+    depends_on:
+      mysql:
+        condition: service_healthy
+
+  emr-visit-service:
+    image: maven:3.9.9-eclipse-temurin-17
+    restart: unless-stopped
+    working_dir: /workspace/backend
+    command: mvn -pl emr-visit-service -am spring-boot:run
+    volumes:
+      - ../backend:/workspace/backend
+      - maven-repo:/root/.m2
+    environment:
+      EMR_VISIT_DB_URL: jdbc:mysql://mysql:3306/emr_visit?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&useSSL=false
+      EMR_VISIT_DB_USERNAME: root
+      EMR_VISIT_DB_PASSWORD: 123456
+    ports:
+      - "8103:8103"
+    depends_on:
+      mysql:
+        condition: service_healthy
+
+  emr-record-service:
+    image: maven:3.9.9-eclipse-temurin-17
+    restart: unless-stopped
+    working_dir: /workspace/backend
+    command: mvn -pl emr-record-service -am spring-boot:run
+    volumes:
+      - ../backend:/workspace/backend
+      - maven-repo:/root/.m2
+    environment:
+      EMR_RECORD_DB_URL: jdbc:mysql://mysql:3306/emr_record?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&useSSL=false
+      EMR_RECORD_DB_USERNAME: root
+      EMR_RECORD_DB_PASSWORD: 123456
+    ports:
+      - "8104:8104"
+    depends_on:
+      mysql:
+        condition: service_healthy
+
+  emr-clinical-service:
+    image: maven:3.9.9-eclipse-temurin-17
+    restart: unless-stopped
+    working_dir: /workspace/backend
+    command: mvn -pl emr-clinical-service -am spring-boot:run
+    volumes:
+      - ../backend:/workspace/backend
+      - maven-repo:/root/.m2
+    environment:
+      EMR_CLINICAL_DB_URL: jdbc:mysql://mysql:3306/emr_clinical?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&useSSL=false
+      EMR_CLINICAL_DB_USERNAME: root
+      EMR_CLINICAL_DB_PASSWORD: 123456
+    ports:
+      - "8105:8105"
+    depends_on:
+      mysql:
+        condition: service_healthy
+
+  emr-workflow-service:
+    image: maven:3.9.9-eclipse-temurin-17
+    restart: unless-stopped
+    working_dir: /workspace/backend
+    command: mvn -pl emr-workflow-service -am spring-boot:run
+    volumes:
+      - ../backend:/workspace/backend
+      - maven-repo:/root/.m2
+    environment:
+      EMR_WORKFLOW_DB_URL: jdbc:mysql://mysql:3306/emr_workflow?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&useSSL=false
+      EMR_WORKFLOW_DB_USERNAME: root
+      EMR_WORKFLOW_DB_PASSWORD: 123456
+      EMR_CLINICAL_BASE_URL: http://emr-clinical-service:8105
+      EMR_RECORD_BASE_URL: http://emr-record-service:8104
+    ports:
+      - "8106:8106"
+    depends_on:
+      mysql:
+        condition: service_healthy
+      emr-clinical-service:
+        condition: service_started
+      emr-record-service:
+        condition: service_started
+
+  emr-billing-service:
+    image: maven:3.9.9-eclipse-temurin-17
+    restart: unless-stopped
+    working_dir: /workspace/backend
+    command: mvn -pl emr-billing-service -am spring-boot:run
+    volumes:
+      - ../backend:/workspace/backend
+      - maven-repo:/root/.m2
+    environment:
+      EMR_BILLING_DB_URL: jdbc:mysql://mysql:3306/emr_billing?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&useSSL=false
+      EMR_BILLING_DB_USERNAME: root
+      EMR_BILLING_DB_PASSWORD: 123456
+    ports:
+      - "8107:8107"
+    depends_on:
+      mysql:
+        condition: service_healthy
+
+  emr-system-service:
+    image: maven:3.9.9-eclipse-temurin-17
+    restart: unless-stopped
+    working_dir: /workspace/backend
+    command: mvn -pl emr-system-service -am spring-boot:run
+    volumes:
+      - ../backend:/workspace/backend
+      - maven-repo:/root/.m2
+    environment:
+      EMR_SYSTEM_DB_URL: jdbc:mysql://mysql:3306/emr_system?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&useSSL=false
+      EMR_SYSTEM_DB_USERNAME: root
+      EMR_SYSTEM_DB_PASSWORD: 123456
+    ports:
+      - "8108:8108"
+    depends_on:
+      mysql:
+        condition: service_healthy
+
+  emr-ai-service:
+    image: maven:3.9.9-eclipse-temurin-17
+    restart: unless-stopped
+    working_dir: /workspace/backend
+    command: mvn -pl emr-ai-service -am spring-boot:run
+    volumes:
+      - ../backend:/workspace/backend
+      - maven-repo:/root/.m2
+    environment:
+      EMR_AI_DB_URL: jdbc:mysql://mysql:3306/emr_ai?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&useSSL=false
+      EMR_AI_DB_USERNAME: root
+      EMR_AI_DB_PASSWORD: 123456
+      EMR_RECORD_BASE_URL: http://emr-record-service:8104
+      EMR_AI_PROVIDER: mock
+    ports:
+      - "8109:8109"
+    depends_on:
+      mysql:
+        condition: service_healthy
+      emr-record-service:
+        condition: service_started
+
+  emr-gateway:
+    image: maven:3.9.9-eclipse-temurin-17
+    restart: unless-stopped
+    working_dir: /workspace/backend
+    command: mvn -pl emr-gateway -am spring-boot:run
+    volumes:
+      - ../backend:/workspace/backend
+      - maven-repo:/root/.m2
+    environment:
+      EMR_AUTH_SERVICE_URL: http://emr-auth-service:8101
+      EMR_USER_SERVICE_URL: http://emr-user-service:8102
+      EMR_VISIT_SERVICE_URL: http://emr-visit-service:8103
+      EMR_RECORD_SERVICE_URL: http://emr-record-service:8104
+      EMR_CLINICAL_SERVICE_URL: http://emr-clinical-service:8105
+      EMR_WORKFLOW_SERVICE_URL: http://emr-workflow-service:8106
+      EMR_BILLING_SERVICE_URL: http://emr-billing-service:8107
+      EMR_SYSTEM_SERVICE_URL: http://emr-system-service:8108
+      EMR_AI_SERVICE_URL: http://emr-ai-service:8109
+      EMR_AUTH_SERVICE_BASE_URL: http://emr-auth-service:8101
+      EMR_AUDIT_SYSTEM_SERVICE_BASE_URL: http://emr-system-service:8108
+    ports:
+      - "8080:8080"
+    depends_on:
+      emr-auth-service:
+        condition: service_started
+      emr-user-service:
+        condition: service_started
+      emr-visit-service:
+        condition: service_started
+      emr-record-service:
+        condition: service_started
+      emr-clinical-service:
+        condition: service_started
+      emr-workflow-service:
+        condition: service_started
+      emr-billing-service:
+        condition: service_started
+      emr-system-service:
+        condition: service_started
+      emr-ai-service:
+        condition: service_started
+
+volumes:
+  mysql-data:
+  maven-repo:

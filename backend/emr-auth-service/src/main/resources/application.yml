@@ -1,0 +1,19 @@
+server:
+  port: 8101
+
+spring:
+  application:
+    name: emr-auth-service
+  datasource:
+    url: ${EMR_AUTH_DB_URL:jdbc:mysql://localhost:3306/emr_auth?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&useSSL=false}
+    username: ${EMR_AUTH_DB_USERNAME:root}
+    password: ${EMR_AUTH_DB_PASSWORD:root}
+    driver-class-name: ${EMR_AUTH_DB_DRIVER:com.mysql.cj.jdbc.Driver}
+
+mybatis-plus:
+  configuration:
+    map-underscore-to-camel-case: true
+
+emr:
+  auth:
+    token-ttl: PT2H

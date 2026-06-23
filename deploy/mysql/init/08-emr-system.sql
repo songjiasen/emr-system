@@ -1,0 +1,85 @@
+USE emr_system;
+
+CREATE TABLE IF NOT EXISTS news (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '主键ID',
+  title VARCHAR(128) NOT NULL COMMENT '资讯标题',
+  category VARCHAR(64) DEFAULT NULL COMMENT '资讯分类',
+  cover_url VARCHAR(500) DEFAULT NULL COMMENT '封面图',
+  summary VARCHAR(500) DEFAULT NULL COMMENT '摘要',
+  content LONGTEXT NOT NULL COMMENT '资讯内容',
+  publish_status VARCHAR(32) DEFAULT NULL COMMENT '发布状态',
+  publisher_id BIGINT DEFAULT NULL COMMENT '发布人ID',
+  publisher_name VARCHAR(64) DEFAULT NULL COMMENT '发布人姓名',
+  status TINYINT NOT NULL DEFAULT 1 COMMENT '状态: 1发布 0下架',
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  KEY idx_news_status_time (status, created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='病历资讯表';
+
+CREATE TABLE IF NOT EXISTS messages (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '主键ID',
+  user_id BIGINT NOT NULL COMMENT '留言用户ID',
+  username VARCHAR(64) NOT NULL COMMENT '留言用户账号',
+  role_code VARCHAR(32) NOT NULL COMMENT '留言用户角色',
+  title VARCHAR(128) DEFAULT NULL COMMENT '留言标题',
+  content TEXT NOT NULL COMMENT '留言内容',
+  image_url VARCHAR(500) DEFAULT NULL COMMENT '留言图片',
+  reply_content TEXT COMMENT '回复内容',
+  reply_image_url VARCHAR(500) DEFAULT NULL COMMENT '回复图片',
+  reply_user_id BIGINT DEFAULT NULL COMMENT '回复人ID',
+  reply_user_name VARCHAR(64) DEFAULT NULL COMMENT '回复人姓名',
+  reply_time DATETIME DEFAULT NULL COMMENT '回复时间',
+  status TINYINT NOT NULL DEFAULT 1 COMMENT '状态: 1正常 0删除',
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  KEY idx_messages_user (user_id),
+  KEY idx_messages_status_time (status, created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='留言板表';
+
+CREATE TABLE IF NOT EXISTS carousels (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '主键ID',
+  title VARCHAR(128) NOT NULL COMMENT '轮播图标题',
+  image_url VARCHAR(500) NOT NULL COMMENT '轮播图图片',
+  link_url VARCHAR(500) DEFAULT NULL COMMENT '跳转链接',
+  sort_no INT NOT NULL DEFAULT 0 COMMENT '排序号',
+  status TINYINT NOT NULL DEFAULT 1 COMMENT '状态: 1启用 0停用',
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  KEY idx_carousels_status_sort (status, sort_no)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='轮播图表';
+
+CREATE TABLE IF NOT EXISTS menu (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '主键ID',
+  name VARCHAR(64) NOT NULL COMMENT '菜单名称',
+  role_code VARCHAR(32) NOT NULL COMMENT '角色编码',
+  menujson LONGTEXT NOT NULL COMMENT '菜单JSON',
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  UNIQUE KEY uk_menu_role_name (role_code, name)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='菜单配置表';
+
+CREATE TABLE IF NOT EXISTS config (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '主键ID',
+  config_key VARCHAR(128) NOT NULL COMMENT '配置键',
+  config_value TEXT COMMENT '配置值',
+  description VARCHAR(255) DEFAULT NULL COMMENT '配置说明',
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  UNIQUE KEY uk_config_key (config_key)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='系统配置表';
+
+CREATE TABLE IF NOT EXISTS syslog (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '主键ID',
+  user_id BIGINT DEFAULT NULL COMMENT '操作用户ID',
+  username VARCHAR(64) DEFAULT NULL COMMENT '操作用户账号',
+  role_code VARCHAR(32) DEFAULT NULL COMMENT '操作用户角色',
+  operation VARCHAR(128) NOT NULL COMMENT '操作名称',
+  request_method VARCHAR(16) DEFAULT NULL COMMENT '请求方法',
+  request_uri VARCHAR(255) DEFAULT NULL COMMENT '请求地址',
+  request_params TEXT COMMENT '请求参数',
+  cost_millis BIGINT DEFAULT NULL COMMENT '执行耗时毫秒',
+  ip VARCHAR(64) DEFAULT NULL COMMENT '客户端IP',
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  KEY idx_syslog_user_time (user_id, created_at),
+  KEY idx_syslog_operation_time (operation, created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='系统操作日志表';

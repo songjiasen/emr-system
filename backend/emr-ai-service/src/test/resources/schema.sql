@@ -1,0 +1,14 @@
+CREATE TABLE IF NOT EXISTS ai_request_log (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  request_no VARCHAR(32) NOT NULL,
+  ai_type VARCHAR(64) NOT NULL,
+  user_id BIGINT,
+  username VARCHAR(64),
+  input_summary VARCHAR(500),
+  result_summary VARCHAR(500),
+  provider VARCHAR(64) NOT NULL DEFAULT 'mock',
+  status VARCHAR(32) NOT NULL DEFAULT 'success',
+  error_message VARCHAR(500),
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);

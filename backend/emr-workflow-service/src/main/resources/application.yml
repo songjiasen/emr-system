@@ -1,0 +1,15 @@
+server:
+  port: 8106
+
+spring:
+  application:
+    name: emr-workflow-service
+  datasource:
+    url: ${EMR_WORKFLOW_DB_URL:jdbc:mysql://localhost:3306/emr_workflow?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai}
+    username: ${EMR_WORKFLOW_DB_USERNAME:root}
+    password: ${EMR_WORKFLOW_DB_PASSWORD:root}
+    driver-class-name: ${EMR_WORKFLOW_DB_DRIVER:com.mysql.cj.jdbc.Driver}
+
+mybatis-plus:
+  configuration:
+    map-underscore-to-camel-case: true

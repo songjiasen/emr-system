@@ -1,0 +1,15 @@
+server:
+  port: 8108
+
+spring:
+  application:
+    name: emr-system-service
+  datasource:
+    url: ${EMR_SYSTEM_DB_URL:jdbc:mysql://localhost:3306/emr_system?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&useSSL=false}
+    username: ${EMR_SYSTEM_DB_USERNAME:root}
+    password: ${EMR_SYSTEM_DB_PASSWORD:root}
+    driver-class-name: ${EMR_SYSTEM_DB_DRIVER:com.mysql.cj.jdbc.Driver}
+
+mybatis-plus:
+  configuration:
+    map-underscore-to-camel-case: true

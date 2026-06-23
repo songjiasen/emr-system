@@ -1,0 +1,77 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: emr-gateway
+  cloud:
+    gateway:
+      globalcors:
+        cors-configurations:
+          '[/**]':
+            allowed-origins:
+              - "http://localhost:5173"
+              - "http://localhost:5174"
+            allowed-methods:
+              - GET
+              - POST
+              - PUT
+              - DELETE
+              - OPTIONS
+            allowed-headers: "*"
+            allow-credentials: true
+      routes:
+        - id: emr-auth-service
+          uri: ${EMR_AUTH_SERVICE_URL:http://localhost:8101}
+          predicates:
+            - Path=/cl584734139/auth/**
+          filters:
+            - StripPrefix=1
+        - id: emr-user-service
+          uri: ${EMR_USER_SERVICE_URL:http://localhost:8102}
+          predicates:
+            - Path=/cl584734139/doctors/**,/cl584734139/departments/**,/cl584734139/user-management/**
+          filters:
+            - StripPrefix=1
+        - id: emr-visit-service
+          uri: ${EMR_VISIT_SERVICE_URL:http://localhost:8103}
+          predicates:
+            - Path=/cl584734139/appointments/**,/cl584734139/triage-records/**,/cl584734139/inpatients/**
+          filters:
+            - StripPrefix=1
+        - id: emr-record-service
+          uri: ${EMR_RECORD_SERVICE_URL:http://localhost:8104}
+          predicates:
+            - Path=/cl584734139/medical-records/**,/cl584734139/medical-record-templates/**,/cl584734139/medical-record-archives/**
+          filters:
+            - StripPrefix=1
+        - id: emr-clinical-service
+          uri: ${EMR_CLINICAL_SERVICE_URL:http://localhost:8105}
+          predicates:
+            - Path=/cl584734139/medical-orders/**,/cl584734139/prescriptions/**,/cl584734139/test-requests/**
+          filters:
+            - StripPrefix=1
+        - id: emr-workflow-service
+          uri: ${EMR_WORKFLOW_SERVICE_URL:http://localhost:8106}
+          predicates:
+            - Path=/cl584734139/workflow/**
+          filters:
+            - StripPrefix=1
+        - id: emr-billing-service
+          uri: ${EMR_BILLING_SERVICE_URL:http://localhost:8107}
+          predicates:
+            - Path=/cl584734139/fees/**
+          filters:
+            - StripPrefix=1
+        - id: emr-system-service
+          uri: ${EMR_SYSTEM_SERVICE_URL:http://localhost:8108}
+          predicates:
+            - Path=/cl584734139/news/**,/cl584734139/messages/**,/cl584734139/carousels/**,/cl584734139/config/**,/cl584734139/menus/**,/cl584734139/syslogs/**
+          filters:
+            - StripPrefix=1
+        - id: emr-ai-service
+          uri: ${EMR_AI_SERVICE_URL:http://localhost:8109}
+          predicates:
+            - Path=/cl584734139/ai/**
+          filters:
+            - StripPrefix=1

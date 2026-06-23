@@ -1,0 +1,15 @@
+server:
+  port: 8105
+
+spring:
+  application:
+    name: emr-clinical-service
+  datasource:
+    url: ${EMR_CLINICAL_DB_URL:jdbc:mysql://localhost:3306/emr_clinical?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai}
+    username: ${EMR_CLINICAL_DB_USERNAME:root}
+    password: ${EMR_CLINICAL_DB_PASSWORD:root}
+    driver-class-name: ${EMR_CLINICAL_DB_DRIVER:com.mysql.cj.jdbc.Driver}
+
+mybatis-plus:
+  configuration:
+    map-underscore-to-camel-case: true

@@ -1,0 +1,62 @@
+CREATE TABLE IF NOT EXISTS yizhuxinxi (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  order_no VARCHAR(32) NOT NULL,
+  record_id BIGINT,
+  patient_id BIGINT NOT NULL,
+  patient_name VARCHAR(64) NOT NULL,
+  doctor_id BIGINT NOT NULL,
+  doctor_name VARCHAR(64) NOT NULL,
+  order_type VARCHAR(64),
+  content CLOB NOT NULL,
+  status VARCHAR(32) NOT NULL DEFAULT 'pending_audit',
+  audit_opinion VARCHAR(500),
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS yizhuzhixingjilu (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  order_id BIGINT NOT NULL,
+  order_no VARCHAR(32) NOT NULL,
+  nurse_id BIGINT NOT NULL,
+  nurse_name VARCHAR(64) NOT NULL,
+  execution_time TIMESTAMP NOT NULL,
+  execution_result VARCHAR(500),
+  remark VARCHAR(500),
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS kaifang (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  prescription_no VARCHAR(32) NOT NULL,
+  record_id BIGINT,
+  patient_id BIGINT NOT NULL,
+  patient_name VARCHAR(64) NOT NULL,
+  doctor_id BIGINT NOT NULL,
+  doctor_name VARCHAR(64) NOT NULL,
+  medicine_name VARCHAR(128) NOT NULL,
+  quantity VARCHAR(64),
+  usage_text VARCHAR(255),
+  remark VARCHAR(500),
+  status VARCHAR(32) NOT NULL DEFAULT 'created',
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS jianchaxiang (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  test_no VARCHAR(32) NOT NULL,
+  record_id BIGINT,
+  patient_id BIGINT NOT NULL,
+  patient_name VARCHAR(64) NOT NULL,
+  doctor_id BIGINT NOT NULL,
+  doctor_name VARCHAR(64) NOT NULL,
+  test_item VARCHAR(128) NOT NULL,
+  test_reason VARCHAR(500),
+  status VARCHAR(32) NOT NULL DEFAULT 'pending_audit',
+  audit_opinion VARCHAR(500),
+  result_content CLOB,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
