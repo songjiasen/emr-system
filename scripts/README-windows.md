@@ -12,6 +12,15 @@
 - MySQL 5.7 或兼容版本，并启动 MySQL 服务
 - MySQL Client，也就是命令行里能执行 `mysql`
 
+Maven 必须使用 JDK 17。可以先执行下面命令确认：
+
+```powershell
+java -version
+mvn -version
+```
+
+`mvn -version` 输出里的 `Java version` 也必须是 `17` 或更高版本。如果这里显示 `1.8`、`8`、`11`，说明 `JAVA_HOME` 还指向旧 JDK，需要把 `JAVA_HOME` 改成 JDK 17，并把 `%JAVA_HOME%\bin` 放到 `Path` 前面。
+
 ## 一键启动
 
 在项目根目录打开 PowerShell 或 CMD，执行：
@@ -83,5 +92,7 @@ Get-Content .\tmp\windows-logs\*.pid | ForEach-Object { Stop-Process -Id $_ -For
 
 - 如果提示端口被占用，先关闭占用 `8080`、`8101-8109`、`5173`、`5174` 的程序。
 - 如果提示找不到 `mysql`，说明只装了 MySQL 服务但没有把 MySQL Client 加到 `PATH`。
+- 如果提示 `Access denied for user 'root'@'localhost'`，说明脚本默认的 MySQL 密码 `root` 不对，请使用 `-MySqlPassword` 传入本机真实密码。
+- 如果提示 `无效的目标发行版: 17`，说明 Maven 实际使用的 Java 不是 JDK 17，请看 `mvn -version` 中的 `Java version` 并重新配置 `JAVA_HOME`。
 - 如果 Maven 第一次启动很慢，是在下载依赖，等它完成即可。
 - 如果 PowerShell 提示脚本执行策略受限，直接运行 `start-windows.bat`，它已经带了 `ExecutionPolicy Bypass`。

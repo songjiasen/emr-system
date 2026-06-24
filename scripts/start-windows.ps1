@@ -54,6 +54,17 @@ function Get-MajorVersion {
     return 0
 }
 
+function Get-JavaMajorVersion {
+    param([string]$Text)
+    if ($Text -match "1\.(\d+)") {
+        return [int]$Matches[1]
+    }
+    if ($Text -match "(\d+)(\.\d+)?(\.\d+)?") {
+        return [int]$Matches[1]
+    }
+    return 0
+}
+
 function Test-PortInUse {
     param(
         [int]$Port,
@@ -81,10 +92,14 @@ function Invoke-Mysql {
         $mysqlArgs += "-p$MySqlPassword"
     }
     $mysqlArgs += $ExtraArgs
+    $mysqlCommand = if ($script:mysqlPath) { $script:mysqlPath } else { "mysql" }
     if ($null -ne $InputSql) {
-        $InputSql | & mysql @mysqlArgs
+        $InputSql | & $mysqlCommand @mysqlArgs
     } else {
-        & mysql @mysqlArgs
+        & $mysqlCommand @mysqlArgs
+    }
+    if ($LASTEXITCODE -ne 0) {
+        Write-FailAndExit "MySQL command failed. Please check MySQL username/password or pass -MySqlUser/-MySqlPassword. exitCode=$LASTEXITCODE"
     }
 }
 
@@ -101,6 +116,34 @@ function New-EnvironmentCommand {
         $parts += '$env:' + $key + ' = ' + (Quote-PS ([string]$EnvVars[$key]))
     }
     return ($parts -join "; ")
+}
+
+function New-NativeCommandText {
+    param(
+        [string]$FilePath,
+        [string[]]$Arguments = @()
+    )
+
+    $parts = @("& " + (Quote-PS $FilePath))
+    foreach ($argument in $Arguments) {
+        $parts += Quote-PS $argument
+    }
+    return ($parts -join " ")
+}
+
+function Invoke-NativeCommand {
+    param(
+        [string]$FilePath,
+        [string[]]$Arguments = @(),
+        [string]$FailureMessage
+    )
+
+    # Windows PowerShell 5.1 will not stop on native command exit codes, so
+    # every critical CLI call must check LASTEXITCODE explicitly before moving on.
+    & $FilePath @Arguments
+    if ($LASTEXITCODE -ne 0) {
+        Write-FailAndExit "$FailureMessage exitCode=$LASTEXITCODE"
+    }
 }
 
 function Start-LoggedProcess {
@@ -175,11 +218,30 @@ $mysqlPath = Require-Command "mysql" "Install MySQL Client and add mysql.exe to 
 # java -version writes normal version output to stderr. Merge it in cmd.exe first
 # so Windows PowerShell 5.1 does not turn the line into NativeCommandError.
 $javaLine = (& cmd.exe /d /c "java -version 2>&1" | Select-Object -First 1) -join ""
-$javaMajor = Get-MajorVersion $javaLine
+if ($LASTEXITCODE -ne 0) {
+    Write-FailAndExit "Java version check failed. Please confirm JDK 17 is installed and java.exe is available. exitCode=$LASTEXITCODE"
+}
+$javaMajor = Get-JavaMajorVersion $javaLine
 if ($javaMajor -lt 17) {
     Write-FailAndExit "Java 17 or newer is required. Current: $javaLine"
 }
 Write-Ok "Java: $javaLine"
+
+# Maven can use JAVA_HOME even when the java command on PATH is already JDK 17.
+# Check the Java version reported by mvn itself to catch that environment mismatch early.
+$mvnVersionOutput = (& cmd.exe /d /c "mvn -version 2>&1") -join "`n"
+if ($LASTEXITCODE -ne 0) {
+    Write-FailAndExit "Maven version check failed. Please confirm Maven is installed correctly. exitCode=$LASTEXITCODE"
+}
+if ($mvnVersionOutput -notmatch "(?m)^Java version:\s*([^,\r\n]+)") {
+    Write-FailAndExit "Could not read Java version from mvn -version output. Output: $mvnVersionOutput"
+}
+$mvnJavaVersion = $Matches[1].Trim()
+$mvnJavaMajor = Get-JavaMajorVersion $mvnJavaVersion
+if ($mvnJavaMajor -lt 17) {
+    Write-FailAndExit "Maven uses Java $mvnJavaVersion, but backend requires Java 17. Set JAVA_HOME to JDK 17 and put %JAVA_HOME%\bin before old Java paths."
+}
+Write-Ok "Maven uses Java: $mvnJavaVersion"
 
 $nodeLine = (& node --version) -join ""
 $nodeMajor = Get-MajorVersion $nodeLine
@@ -220,7 +282,10 @@ if (-not $SkipDbInit) {
 Write-Step "Installing common backend module"
 Push-Location $BackendDir
 try {
-    & mvn -q -pl emr-common -DskipTests install
+    Invoke-NativeCommand `
+        -FilePath $mvnPath `
+        -Arguments @("-q", "-pl", "emr-common", "-DskipTests", "install") `
+        -FailureMessage "Failed to install emr-common. Please confirm Maven uses JDK 17."
 } finally {
     Pop-Location
 }
@@ -241,7 +306,10 @@ foreach ($app in $frontendApps) {
         Write-Host "Installing dependencies for $($app.Name)"
         Push-Location $appDir
         try {
-            & npm install
+            Invoke-NativeCommand `
+                -FilePath $npmPath `
+                -Arguments @("install") `
+                -FailureMessage "Failed to install dependencies for $($app.Name). Please confirm Node.js/npm are installed correctly."
         } finally {
             Pop-Location
         }
@@ -280,7 +348,8 @@ foreach ($service in $services) {
             $envVars[$key] = $service.ExtraEnv[$key]
         }
     }
-    Start-LoggedProcess -Name $service.Name -Command "mvn -q -pl $($service.Name) spring-boot:run" -WorkingDirectory $BackendDir -EnvVars $envVars
+    $serviceCommand = New-NativeCommandText -FilePath $mvnPath -Arguments @("-q", "-pl", $service.Name, "spring-boot:run")
+    Start-LoggedProcess -Name $service.Name -Command $serviceCommand -WorkingDirectory $BackendDir -EnvVars $envVars
 }
 
 $gatewayEnv = @{
@@ -296,7 +365,8 @@ $gatewayEnv = @{
     EMR_AUTH_SERVICE_BASE_URL = "http://127.0.0.1:8101";
     EMR_AUDIT_SYSTEM_SERVICE_BASE_URL = "http://127.0.0.1:8108"
 }
-Start-LoggedProcess -Name "emr-gateway" -Command "mvn -q -pl emr-gateway spring-boot:run" -WorkingDirectory $BackendDir -EnvVars $gatewayEnv
+$gatewayCommand = New-NativeCommandText -FilePath $mvnPath -Arguments @("-q", "-pl", "emr-gateway", "spring-boot:run")
+Start-LoggedProcess -Name "emr-gateway" -Command $gatewayCommand -WorkingDirectory $BackendDir -EnvVars $gatewayEnv
 
 Write-Step "Waiting for backend health checks"
 foreach ($service in $services) {
@@ -307,7 +377,8 @@ Wait-HttpOk -Name "emr-gateway" -Url "http://127.0.0.1:8080/health" -TimeoutSeco
 Write-Step "Starting frontend apps"
 foreach ($app in $frontendApps) {
     $appDir = Join-Path $FrontendDir $app.Name
-    Start-LoggedProcess -Name $app.Name -Command "npm run dev -- --host 0.0.0.0 --port $($app.Port)" -WorkingDirectory $appDir
+    $frontendCommand = New-NativeCommandText -FilePath $npmPath -Arguments @("run", "dev", "--", "--host", "0.0.0.0", "--port", [string]$app.Port)
+    Start-LoggedProcess -Name $app.Name -Command $frontendCommand -WorkingDirectory $appDir
 }
 
 Write-Step "Waiting for frontend pages"

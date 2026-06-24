@@ -103,6 +103,8 @@ Windows 一键检测并启动：
 .\scripts\start-windows.bat -MySqlUser root -MySqlPassword 你的密码
 ```
 
+Windows 上还需要确认 `mvn -version` 输出里的 `Java version` 是 `17` 或更高版本；如果 Maven 使用 Java 8/11，会出现 `无效的目标发行版: 17`，需要把 `JAVA_HOME` 改到 JDK 17。
+
 详细说明见 `scripts/README-windows.md`。
 
 访问地址：

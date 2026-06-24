@@ -27,7 +27,21 @@ for (const fileName of fs.readdirSync(scriptsDir).filter((name) => name.endsWith
         `${fileName}:${index + 1}: Windows PowerShell 会把 java -version 的 stderr 当作 NativeCommandError，请通过 cmd 合并输出`,
       )
     }
+
+    if (/\&\s+(mvn|npm|mysql)\b/.test(line)) {
+      errors.push(
+        `${fileName}:${index + 1}: Windows PowerShell 5.1 不会因为原生命令退出码自动停止，请通过脚本封装并检查 LASTEXITCODE`,
+      )
+    }
+
+    if (/-Command",\s*".*\b(mvn|npm)\b/.test(line)) {
+      errors.push(`${fileName}:${index + 1}: 后台进程请使用解析后的命令路径生成，避免 Windows PATH 或别名解析跑偏`)
+    }
   })
+
+  if (fileName === 'start-windows.ps1' && !lines.some((line) => line.includes('Maven uses Java'))) {
+    errors.push(`${fileName}: 请检查 mvn -version 中 Maven 实际使用的 Java 版本，避免 java 命令和 Maven JAVA_HOME 不一致`)
+  }
 }
 
 if (errors.length > 0) {
