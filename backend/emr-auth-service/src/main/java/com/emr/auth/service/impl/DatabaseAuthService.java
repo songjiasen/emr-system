@@ -103,14 +103,7 @@ public class DatabaseAuthService implements AuthService {
         entity.setExpireAt(LocalDateTime.ofInstant(expireAt, ZoneOffset.UTC));
         authTokenMapper.insert(entity);
 
-        return new LoginResponse(
-                account.userId(),
-                account.username(),
-                account.roleCode(),
-                account.tableName(),
-                token,
-                expireAt.toString()
-        );
+        return toLoginResponse(account, token, expireAt);
     }
 
     /**
@@ -158,14 +151,8 @@ public class DatabaseAuthService implements AuthService {
             authTokenMapper.deleteById(entity.getId());
             throw new IllegalArgumentException("Token无效或已过期");
         }
-        return new LoginResponse(
-                entity.getUserId(),
-                entity.getUsername(),
-                entity.getRoleCode(),
-                entity.getTableName(),
-                entity.getToken(),
-                expireAt.toString()
-        );
+        AccountSnapshot account = requireAccount(entity.getUsername());
+        return toLoginResponse(account, entity.getToken(), expireAt);
     }
 
     /**
@@ -234,7 +221,9 @@ public class DatabaseAuthService implements AuthService {
                     systemUser.getRealName(),
                     systemUser.getPhone(),
                     systemUser.getRoleCode(),
-                    USERS_TABLE
+                    USERS_TABLE,
+                    systemUser.getDepartmentId(),
+                    systemUser.getDepartmentName()
             );
         }
 
@@ -250,7 +239,9 @@ public class DatabaseAuthService implements AuthService {
                     doctor.getName(),
                     doctor.getPhone(),
                     "doctor",
-                    DOCTOR_TABLE
+                    DOCTOR_TABLE,
+                    doctor.getDepartmentId(),
+                    doctor.getDepartmentName()
             );
         }
 
@@ -266,10 +257,29 @@ public class DatabaseAuthService implements AuthService {
                     patient.getName(),
                     patient.getPhone(),
                     "patient",
-                    PATIENT_TABLE
+                    PATIENT_TABLE,
+                    null,
+                    null
             );
         }
         throw new IllegalArgumentException("账号不存在");
+    }
+
+    /**
+     * 组装登录上下文。
+     * 科室只对护士/医生等有归属的账号返回，网关会把该范围作为可信头传给下游服务。
+     */
+    private LoginResponse toLoginResponse(AccountSnapshot account, String token, Instant expireAt) {
+        return new LoginResponse(
+                account.userId(),
+                account.username(),
+                account.roleCode(),
+                account.tableName(),
+                account.departmentId(),
+                account.departmentName(),
+                token,
+                expireAt.toString()
+        );
     }
 
     /**
@@ -386,7 +396,9 @@ public class DatabaseAuthService implements AuthService {
             String name,
             String phone,
             String roleCode,
-            String tableName
+            String tableName,
+            Long departmentId,
+            String departmentName
     ) {
     }
 }

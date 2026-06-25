@@ -82,6 +82,8 @@ public class AuthenticationGlobalFilter implements GlobalFilter, Ordered {
             headers.remove("X-Username");
             headers.remove("X-Role-Code");
             headers.remove("X-User-Table");
+            headers.remove("X-Department-Id");
+            headers.remove("X-Department-Name");
         })).build();
     }
 
@@ -91,10 +93,18 @@ public class AuthenticationGlobalFilter implements GlobalFilter, Ordered {
             headers.remove("X-Username");
             headers.remove("X-Role-Code");
             headers.remove("X-User-Table");
+            headers.remove("X-Department-Id");
+            headers.remove("X-Department-Name");
             headers.set("X-User-Id", String.valueOf(context.userId()));
             headers.set("X-Username", context.username());
             headers.set("X-Role-Code", context.roleCode());
             headers.set("X-User-Table", context.tableName());
+            if (context.departmentId() != null) {
+                headers.set("X-Department-Id", String.valueOf(context.departmentId()));
+            }
+            if (context.departmentName() != null && !context.departmentName().isBlank()) {
+                headers.set("X-Department-Name", context.departmentName());
+            }
         })).build();
     }
 

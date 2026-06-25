@@ -56,17 +56,21 @@ public class AppointmentController {
     public ApiResponse<PageResult<AppointmentResponse>> listAppointments(
             @RequestParam(name = "patientId", required = false) Long patientId,
             @RequestParam(name = "doctorId", required = false) Long doctorId,
+            @RequestParam(name = "departmentId", required = false) Long departmentId,
             @RequestParam(name = "status", required = false) String status,
             @RequestParam(name = "page", defaultValue = "1") int page,
             @RequestParam(name = "limit", defaultValue = "10") int limit,
             @RequestHeader(value = "X-User-Id", required = false) String userIdHeader,
             @RequestHeader(value = "X-Username", required = false) String username,
             @RequestHeader(value = "X-Role-Code", required = false) String roleCode,
-            @RequestHeader(value = "X-User-Table", required = false) String tableName
+            @RequestHeader(value = "X-User-Table", required = false) String tableName,
+            @RequestHeader(value = "X-Department-Id", required = false) String departmentIdHeader,
+            @RequestHeader(value = "X-Department-Name", required = false) String departmentName
     ) {
-        TrustedUserContext context = TrustedUserContext.fromHeaders(userIdHeader, username, roleCode, tableName);
+        TrustedUserContext context = TrustedUserContext.fromHeaders(userIdHeader, username, roleCode, tableName, departmentIdHeader, departmentName);
         Long scopedPatientId = patientId;
         Long scopedDoctorId = doctorId;
+        Long scopedDepartmentId = departmentId;
         if (context.isPatient()) {
             if (patientId != null && !context.matchesUserId(patientId)) {
                 throw new IllegalArgumentException("当前登录患者只能查询自己的预约");
@@ -79,7 +83,13 @@ public class AppointmentController {
             }
             scopedDoctorId = context.userId();
         }
-        return ApiResponse.success(appointmentService.listAppointments(scopedPatientId, scopedDoctorId, status, page, limit));
+        if (context.isNurse()) {
+            if (context.departmentId() == null) {
+                throw new IllegalArgumentException("当前登录护士未绑定科室");
+            }
+            scopedDepartmentId = context.departmentId();
+        }
+        return ApiResponse.success(appointmentService.listAppointments(scopedPatientId, scopedDoctorId, scopedDepartmentId, status, page, limit));
     }
 
     /**

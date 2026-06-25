@@ -85,6 +85,9 @@ public class GatewayAccessPolicy {
     }
 
     private boolean isNurseAllowed(HttpMethod method, String path) {
+        if (pathStartsWith(path, "/appointments")) {
+            return HttpMethod.GET.equals(method);
+        }
         if (pathStartsWith(path, "/triage-records")
                 || pathStartsWith(path, "/inpatients")) {
             return true;

@@ -154,6 +154,7 @@ public class UserDirectoryService {
         entity.setRoleCode(config.roleCode());
         entity.setGender(stringValue(payload.get("gender")));
         entity.setPhone(stringValue(payload.get("phone")));
+        applyNurseDepartment(config, entity, payload);
         entity.setAvatar(stringValue(payload.get("avatar")));
         entity.setStatus(1);
         systemUserMapper.insert(entity);
@@ -213,6 +214,9 @@ public class UserDirectoryService {
         if (payload.containsKey("phone")) {
             entity.setPhone(stringValue(payload.get("phone")));
         }
+        if (payload.containsKey("departmentId") || payload.containsKey("departmentName")) {
+            applyNurseDepartment(config, entity, payload);
+        }
         if (payload.containsKey("avatar")) {
             entity.setAvatar(stringValue(payload.get("avatar")));
         }
@@ -221,6 +225,42 @@ public class UserDirectoryService {
         }
         systemUserMapper.updateById(entity);
         return toSystemUserRow(config.type(), entity);
+    }
+
+    /**
+     * 处理护士所属科室。
+     * 当前业务口径是一科室只绑定一名护士，因此创建和编辑护士时都要先校验科室未被其他护士占用。
+     */
+    private void applyNurseDepartment(UserTypeConfig config, SystemUserEntity entity, Map<String, Object> payload) {
+        if (!"nurse".equals(config.roleCode())) {
+            entity.setDepartmentId(null);
+            entity.setDepartmentName(null);
+            return;
+        }
+        Long departmentId = payload.containsKey("departmentId") ? longValue(payload.get("departmentId")) : entity.getDepartmentId();
+        String departmentName = payload.containsKey("departmentName") ? stringValue(payload.get("departmentName")) : entity.getDepartmentName();
+        entity.setDepartmentId(departmentId);
+        entity.setDepartmentName(resolveDepartmentName(departmentId, departmentName));
+        ensureNurseDepartmentAvailable(entity.getDepartmentId(), entity.getId());
+    }
+
+    /**
+     * 校验护士科室唯一绑定。
+     * departmentId 为空时允许保存，用于兼容旧护士账号，但该护士后续不能查询待分诊预约。
+     */
+    private void ensureNurseDepartmentAvailable(Long departmentId, Long selfId) {
+        if (departmentId == null) {
+            return;
+        }
+        LambdaQueryWrapper<SystemUserEntity> wrapper = new LambdaQueryWrapper<SystemUserEntity>()
+                .eq(SystemUserEntity::getRoleCode, "nurse")
+                .eq(SystemUserEntity::getDepartmentId, departmentId);
+        if (selfId != null) {
+            wrapper.ne(SystemUserEntity::getId, selfId);
+        }
+        if (systemUserMapper.selectCount(wrapper) > 0) {
+            throw new IllegalArgumentException("该科室已绑定护士");
+        }
     }
 
     private Map<String, Object> updateDoctor(UserTypeConfig config, Long id, Map<String, Object> payload) {
@@ -365,8 +405,8 @@ public class UserDirectoryService {
         Map<String, Object> row = baseRow(type, entity.getId(), entity.getUsername(), entity.getRealName(), entity.getRoleCode(), entity.getPhone(), entity.getStatus());
         row.put("gender", entity.getGender());
         row.put("avatar", entity.getAvatar());
-        row.put("departmentId", null);
-        row.put("departmentName", null);
+        row.put("departmentId", entity.getDepartmentId());
+        row.put("departmentName", entity.getDepartmentName());
         row.put("specialty", null);
         return row;
     }

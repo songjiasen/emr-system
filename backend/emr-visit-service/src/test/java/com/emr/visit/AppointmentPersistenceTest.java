@@ -148,4 +148,71 @@ class AppointmentPersistenceTest {
         assertThat(cancelResponse.getBody()).containsEntry("code", 400);
         assertThat(cancelResponse.getBody()).containsEntry("message", "当前登录患者无权操作该预约");
     }
+
+    @Test
+    void nurseCanOnlyListAppointmentsInOwnDepartment() {
+        jdbcTemplate.update(
+                "insert into yuyueguahao (appointment_no, patient_id, patient_name, doctor_id, doctor_name, department_id, department_name, appointment_time, status) values (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                "APPT202606260201",
+                5201L,
+                "心内科患者",
+                31L,
+                "心内科医生",
+                1L,
+                "心内科",
+                "2026-06-26 13:00:00",
+                "pending"
+        );
+        jdbcTemplate.update(
+                "insert into yuyueguahao (appointment_no, patient_id, patient_name, doctor_id, doctor_name, department_id, department_name, appointment_time, status) values (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                "APPT202606260202",
+                5202L,
+                "儿科患者",
+                32L,
+                "儿科医生",
+                2L,
+                "儿科",
+                "2026-06-26 14:00:00",
+                "pending"
+        );
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.add("X-User-Id", "7801");
+        headers.add("X-Username", "nurse_demo");
+        headers.add("X-Role-Code", "nurse");
+        headers.add("X-User-Table", "users");
+        headers.add("X-Department-Id", "1");
+        headers.add("X-Department-Name", "心内科");
+
+        ResponseEntity<Map> response = restTemplate.exchange(
+                "/appointments",
+                HttpMethod.GET,
+                new HttpEntity<>(headers),
+                Map.class
+        );
+        List<?> rows = (List<?>) ((Map<?, ?>) response.getBody().get("data")).get("rows");
+
+        assertThat(response.getBody()).containsEntry("code", 0);
+        assertThat(rows).anySatisfy(item -> assertThat((Map) item).containsEntry("patientName", "心内科患者"));
+        assertThat(rows).noneSatisfy(item -> assertThat((Map) item).containsEntry("patientName", "儿科患者"));
+    }
+
+    @Test
+    void nurseWithoutDepartmentCannotListAppointments() {
+        HttpHeaders headers = new HttpHeaders();
+        headers.add("X-User-Id", "7802");
+        headers.add("X-Username", "nurse_without_department");
+        headers.add("X-Role-Code", "nurse");
+        headers.add("X-User-Table", "users");
+
+        ResponseEntity<Map> response = restTemplate.exchange(
+                "/appointments",
+                HttpMethod.GET,
+                new HttpEntity<>(headers),
+                Map.class
+        );
+
+        assertThat(response.getBody()).containsEntry("code", 400);
+        assertThat(response.getBody()).containsEntry("message", "当前登录护士未绑定科室");
+    }
 }

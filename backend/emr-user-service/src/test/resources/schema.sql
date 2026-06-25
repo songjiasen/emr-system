@@ -6,6 +6,8 @@ CREATE TABLE IF NOT EXISTS users (
   role_code VARCHAR(32) NOT NULL,
   gender VARCHAR(8),
   phone VARCHAR(20),
+  department_id BIGINT,
+  department_name VARCHAR(64),
   avatar VARCHAR(255),
   status TINYINT NOT NULL DEFAULT 1,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,

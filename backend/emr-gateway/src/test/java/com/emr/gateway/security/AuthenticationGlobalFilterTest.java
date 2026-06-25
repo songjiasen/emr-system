@@ -31,7 +31,7 @@ class AuthenticationGlobalFilterTest {
 
     @Test
     void authenticatedRequestReceivesTrustedIdentityHeaders() {
-        AuthContext context = new AuthContext(7L, "doctor_demo", "doctor", "yisheng");
+        AuthContext context = new AuthContext(7L, "doctor_demo", "doctor", "yisheng", 1L, "心内科");
         AuthenticationGlobalFilter filter = new AuthenticationGlobalFilter(policy, token -> Mono.just(context), event -> Mono.empty());
         MockServerWebExchange exchange = exchange(HttpMethod.GET, "/cl584734139/medical-records", "valid-token");
         AtomicReference<org.springframework.web.server.ServerWebExchange> forwarded = new AtomicReference<>();
@@ -45,6 +45,8 @@ class AuthenticationGlobalFilterTest {
         assertThat(forwarded.get().getRequest().getHeaders().getFirst("X-User-Id")).isEqualTo("7");
         assertThat(forwarded.get().getRequest().getHeaders().getFirst("X-Username")).isEqualTo("doctor_demo");
         assertThat(forwarded.get().getRequest().getHeaders().getFirst("X-Role-Code")).isEqualTo("doctor");
+        assertThat(forwarded.get().getRequest().getHeaders().getFirst("X-Department-Id")).isEqualTo("1");
+        assertThat(forwarded.get().getRequest().getHeaders().getFirst("X-Department-Name")).isEqualTo("心内科");
         assertThat(exchange.getResponse().getStatusCode()).isNull();
     }
 

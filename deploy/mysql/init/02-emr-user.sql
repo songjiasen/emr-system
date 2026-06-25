@@ -8,11 +8,14 @@ CREATE TABLE IF NOT EXISTS users (
   role_code VARCHAR(32) NOT NULL COMMENT '角色编码: super_admin/admin/nurse/director',
   gender VARCHAR(8) DEFAULT NULL COMMENT '性别',
   phone VARCHAR(20) DEFAULT NULL COMMENT '手机号',
+  department_id BIGINT DEFAULT NULL COMMENT '护士所属科室ID',
+  department_name VARCHAR(64) DEFAULT NULL COMMENT '护士所属科室名称冗余',
   avatar VARCHAR(255) DEFAULT NULL COMMENT '头像',
   status TINYINT NOT NULL DEFAULT 1 COMMENT '状态: 1启用 0禁用',
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
   updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
   UNIQUE KEY uk_users_username (username),
+  UNIQUE KEY uk_users_department_nurse (department_id),
   KEY idx_users_role_status (role_code, status)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='系统用户表';
 

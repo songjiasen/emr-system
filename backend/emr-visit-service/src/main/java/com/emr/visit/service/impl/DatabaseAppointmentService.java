@@ -66,7 +66,7 @@ public class DatabaseAppointmentService implements AppointmentService {
      * 保持患者、医生、状态三个可选过滤条件，并按创建顺序倒序返回，兼容现有列表体验。
      */
     @Override
-    public PageResult<AppointmentResponse> listAppointments(Long patientId, Long doctorId, String status, int page, int limit) {
+    public PageResult<AppointmentResponse> listAppointments(Long patientId, Long doctorId, Long departmentId, String status, int page, int limit) {
         LambdaQueryWrapper<AppointmentEntity> wrapper = new LambdaQueryWrapper<AppointmentEntity>()
                 .orderByDesc(AppointmentEntity::getId);
         if (patientId != null) {
@@ -74,6 +74,9 @@ public class DatabaseAppointmentService implements AppointmentService {
         }
         if (doctorId != null) {
             wrapper.eq(AppointmentEntity::getDoctorId, doctorId);
+        }
+        if (departmentId != null) {
+            wrapper.eq(AppointmentEntity::getDepartmentId, departmentId);
         }
         if (status != null && !status.isBlank()) {
             wrapper.eq(AppointmentEntity::getStatus, status.trim());

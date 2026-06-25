@@ -21,6 +21,8 @@ CREATE TABLE IF NOT EXISTS emr_user.users (
   role_code VARCHAR(32) NOT NULL,
   gender VARCHAR(8),
   phone VARCHAR(20),
+  department_id BIGINT,
+  department_name VARCHAR(64),
   status TINYINT NOT NULL DEFAULT 1,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP

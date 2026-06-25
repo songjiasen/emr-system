@@ -4,11 +4,21 @@ package com.emr.common;
  * 网关透传的可信登录上下文。
  * 业务服务只在请求头完整时启用角色和数据范围约束；无头场景继续兼容单服务测试和内部回调。
  */
-public record TrustedUserContext(Long userId, String username, String roleCode, String tableName) {
+public record TrustedUserContext(Long userId, String username, String roleCode, String tableName, Long departmentId, String departmentName) {
+
+    public TrustedUserContext(Long userId, String username, String roleCode, String tableName) {
+        this(userId, username, roleCode, tableName, null, null);
+    }
 
     public static TrustedUserContext fromHeaders(String userIdHeader, String username, String roleCode, String tableName) {
         Long userId = parseLong(userIdHeader);
-        return new TrustedUserContext(userId, blankToNull(username), blankToNull(roleCode), blankToNull(tableName));
+        return new TrustedUserContext(userId, blankToNull(username), blankToNull(roleCode), blankToNull(tableName), null, null);
+    }
+
+    public static TrustedUserContext fromHeaders(String userIdHeader, String username, String roleCode, String tableName, String departmentIdHeader, String departmentName) {
+        Long userId = parseLong(userIdHeader);
+        Long departmentId = parseLong(departmentIdHeader);
+        return new TrustedUserContext(userId, blankToNull(username), blankToNull(roleCode), blankToNull(tableName), departmentId, blankToNull(departmentName));
     }
 
     public boolean authenticated() {

@@ -9,6 +9,8 @@ public record LoginResponse(
         String username,
         String roleCode,
         String tableName,
+        Long departmentId,
+        String departmentName,
         String token,
         String expireAt
 ) {

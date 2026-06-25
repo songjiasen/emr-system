@@ -112,4 +112,40 @@ class UserPersistenceTest {
         assertThat(adminPassword).isNotBlank();
         assertThat(adminPassword).startsWith("$2");
     }
+
+    @Test
+    void createNursePersistsDepartmentAndRejectsDuplicateDepartmentBinding() {
+        String firstUsername = "nurse_" + UUID.randomUUID().toString().replace("-", "").substring(0, 8);
+        String secondUsername = "nurse_" + UUID.randomUUID().toString().replace("-", "").substring(0, 8);
+
+        Map createResponse = restTemplate.postForObject("/user-management/nurses", Map.of(
+                "username", firstUsername,
+                "name", "心内科护士",
+                "phone", "13600000001",
+                "departmentId", 1,
+                "departmentName", "心内科"
+        ), Map.class);
+        Map duplicateResponse = restTemplate.postForObject("/user-management/nurses", Map.of(
+                "username", secondUsername,
+                "name", "重复科室护士",
+                "phone", "13600000002",
+                "departmentId", 1,
+                "departmentName", "心内科"
+        ), Map.class);
+
+        Map row = jdbcTemplate.queryForMap(
+                "select role_code, department_id, department_name from users where username = ?",
+                firstUsername
+        );
+
+        assertThat(createResponse).containsEntry("code", 0);
+        assertThat((Map) createResponse.get("data"))
+                .containsEntry("departmentId", 1)
+                .containsEntry("departmentName", "心内科");
+        assertThat(row).containsEntry("role_code", "nurse");
+        assertThat(row.get("department_id")).isEqualTo(1L);
+        assertThat(row).containsEntry("department_name", "心内科");
+        assertThat(duplicateResponse).containsEntry("code", 400);
+        assertThat(duplicateResponse).containsEntry("message", "该科室已绑定护士");
+    }
 }

@@ -180,9 +180,10 @@
                 <el-table-column prop="appointmentTime" label="预约时间" min-width="150" />
                 <el-table-column prop="status" label="状态" width="100" :formatter="statusFormatter" />
                 <el-table-column prop="cancelReason" label="取消原因" min-width="140" />
-                <el-table-column label="操作" width="100">
+                <el-table-column label="操作" width="150">
                   <template #default="{ row }">
-                    <el-button link type="danger" :disabled="row.status === 'cancelled'" @click="cancelAppointmentAction(row)">取消</el-button>
+                    <el-button v-if="isNurseRole()" link type="primary" :disabled="row.status !== 'pending'" @click.stop="openTriageFromAppointment(row)">分诊</el-button>
+                    <el-button v-else link type="danger" :disabled="row.status === 'cancelled'" @click.stop="cancelAppointmentAction(row)">取消</el-button>
                   </template>
                 </el-table-column>
               </el-table>
@@ -264,6 +265,7 @@
                 <el-table-column prop="username" label="账号" min-width="130" />
                 <el-table-column prop="name" label="姓名" min-width="100" />
                 <el-table-column prop="userType" label="类型" width="110" />
+                <el-table-column prop="departmentName" label="科室" min-width="110" />
                 <el-table-column prop="status" label="状态" width="90" :formatter="statusFormatter" />
                 <el-table-column label="操作" width="90">
                   <template #default="{ row }">
@@ -300,6 +302,16 @@
                 </el-form-item>
                 <el-form-item label="手机号">
                   <el-input v-model="userForm.phone" />
+                </el-form-item>
+                <el-form-item v-if="userNeedsDepartment()" label="所属科室">
+                  <el-select v-model="userForm.departmentId" @change="syncUserDepartment">
+                    <el-option
+                      v-for="department in departments"
+                      :key="department.id"
+                      :label="department.name"
+                      :value="department.id"
+                    />
+                  </el-select>
                 </el-form-item>
                 <div class="dialog-footer">
                   <el-button @click="adminDialogs.user = false">取消</el-button>
@@ -1489,6 +1501,14 @@ function statusFormatter(_row, _column, value) {
   return statusText(value);
 }
 
+function isNurseRole() {
+  return adminSession.value.roleCode === 'nurse';
+}
+
+function userNeedsDepartment() {
+  return userType.value === 'doctors' || userType.value === 'nurses';
+}
+
 function resolveAdminTab(tabName) {
   return navItems.some((item) => item.name === tabName) ? tabName : 'dashboard';
 }
@@ -1536,7 +1556,9 @@ function persistAdminSession(data) {
   const sessionSnapshot = {
     userId: data?.userId ?? null,
     username: data?.username || '未命名管理员',
-    roleCode: data?.roleCode || 'guest'
+    roleCode: data?.roleCode || 'guest',
+    departmentId: data?.departmentId ?? null,
+    departmentName: data?.departmentName || ''
   };
   saveAuthState(data?.token || getStoredToken(), sessionSnapshot);
   adminSession.value = sessionSnapshot;
@@ -1643,8 +1665,9 @@ async function loadAppointments() {
     if (appointmentFilterForm.value.doctorId) {
       params.doctorId = appointmentFilterForm.value.doctorId;
     }
-    if (appointmentFilterForm.value.status) {
-      params.status = appointmentFilterForm.value.status;
+    const status = appointmentFilterForm.value.status || (isNurseRole() ? 'pending' : '');
+    if (status) {
+      params.status = status;
     }
     applyPageData(appointments, 'appointments', unwrap(await fetchAppointments(params)));
   } catch (error) {
@@ -1746,6 +1769,9 @@ function openUserDialog(mode, row = null) {
     selectedUser.value = null;
     userForm.value = makeDefaultUserForm();
   }
+  if (departments.value.length === 0) {
+    loadDepartments();
+  }
   adminDialogs.user = true;
 }
 
@@ -1786,6 +1812,37 @@ function openInpatientDialog(row = null) {
     admissionForm.value = makeDefaultAdmissionForm();
     triageForm.value = makeDefaultTriageForm();
   }
+  adminDialogs.inpatient = true;
+}
+
+/**
+ * 从预约记录进入分诊。
+ * 这里只带入预约和患者上下文，护士归属仍以后端网关注入的登录身份为准。
+ */
+function openTriageFromAppointment(row) {
+  if (!row?.id || !row?.patientId) {
+    ElMessage.warning('预约信息不完整，暂时无法分诊');
+    return;
+  }
+  selectedAdmission.value = null;
+  triageForm.value = {
+    appointmentId: row.id,
+    patientId: row.patientId,
+    patientName: row.patientName || '患者演示',
+    nurseId: adminSession.value.userId || 1,
+    nurseName: adminSession.value.username || '护士演示',
+    chiefComplaint: row.remark || '',
+    triageLevel: 'normal'
+  };
+  admissionForm.value = {
+    ...makeDefaultAdmissionForm(),
+    patientId: row.patientId,
+    patientName: row.patientName || '患者演示',
+    doctorId: row.doctorId || 1,
+    doctorName: row.doctorName || '王医生',
+    nurseId: adminSession.value.userId || 1,
+    nurseName: adminSession.value.username || '护士演示'
+  };
   adminDialogs.inpatient = true;
 }
 
@@ -1965,6 +2022,14 @@ function selectUser(row) {
   };
 }
 
+function syncUserDepartment(departmentId) {
+  const department = departments.value.find((item) => item.id === departmentId);
+  if (!department) {
+    return;
+  }
+  userForm.value.departmentName = department.name;
+}
+
 async function updateUserAction() {
   if (!selectedUser.value?.id) {
     ElMessage.warning('请先选择一条人员记录');
@@ -2028,6 +2093,8 @@ async function createTriageAction() {
   try {
     await createTriageRecord(triageForm.value);
     await loadTriageRecords();
+    await loadAppointments();
+    adminDialogs.inpatient = false;
     ElMessage.success('分诊记录已创建');
   } catch (error) {
     showError(error);

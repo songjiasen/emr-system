@@ -7,6 +7,7 @@ import org.springframework.boot.test.web.client.TestRestTemplate;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 
 import java.util.Map;
 import java.util.UUID;
@@ -95,5 +96,42 @@ class AuthPersistenceTest {
 
         assertThat(logoutResponse).containsEntry("code", 0);
         assertThat(remainingCount).isZero();
+    }
+
+    @Test
+    void nurseLoginAndTokenValidationReturnDepartmentScope() {
+        String username = "nurse_scope_" + UUID.randomUUID().toString().replace("-", "").substring(0, 8);
+        String password = "nurse123";
+        jdbcTemplate.update(
+                "insert into emr_user.users (username, password, real_name, role_code, phone, department_id, department_name, status) values (?, ?, ?, ?, ?, ?, ?, ?)",
+                username,
+                new BCryptPasswordEncoder().encode(password),
+                "心内科护士",
+                "nurse",
+                "13600000003",
+                1L,
+                "心内科",
+                1
+        );
+
+        Map loginResponse = restTemplate.postForObject("/auth/login", Map.of(
+                "username", username,
+                "password", password,
+                "roleCode", "nurse"
+        ), Map.class);
+        Map loginData = (Map) loginResponse.get("data");
+        String token = String.valueOf(loginData.get("token"));
+        HttpHeaders headers = new HttpHeaders();
+        headers.set("Token", token);
+
+        Map validateResponse = restTemplate.postForObject("/auth/token/validate", new HttpEntity<>(null, headers), Map.class);
+        Map validateData = (Map) validateResponse.get("data");
+
+        assertThat(loginResponse).containsEntry("code", 0);
+        assertThat(loginData).containsEntry("departmentId", 1);
+        assertThat(loginData).containsEntry("departmentName", "心内科");
+        assertThat(validateResponse).containsEntry("code", 0);
+        assertThat(validateData).containsEntry("departmentId", 1);
+        assertThat(validateData).containsEntry("departmentName", "心内科");
     }
 }

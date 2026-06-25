@@ -32,6 +32,8 @@ class GatewayAccessPolicyTest {
 
     @Test
     void nurseAndDirectorReceiveOnlyTheirWorkflowCapabilities() {
+        assertThat(policy.isAllowed("nurse", HttpMethod.GET, "/cl584734139/appointments")).isTrue();
+        assertThat(policy.isAllowed("nurse", HttpMethod.POST, "/cl584734139/appointments")).isFalse();
         assertThat(policy.isAllowed("nurse", HttpMethod.POST, "/cl584734139/triage-records")).isTrue();
         assertThat(policy.isAllowed("nurse", HttpMethod.POST, "/cl584734139/medical-orders/1/execute")).isTrue();
         assertThat(policy.isAllowed("nurse", HttpMethod.POST, "/cl584734139/medical-orders/1/audit")).isFalse();

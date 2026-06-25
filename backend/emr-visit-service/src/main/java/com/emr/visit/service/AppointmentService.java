@@ -13,10 +13,9 @@ public interface AppointmentService {
 
     AppointmentResponse createAppointment(AppointmentCreateRequest request);
 
-    PageResult<AppointmentResponse> listAppointments(Long patientId, Long doctorId, String status, int page, int limit);
+    PageResult<AppointmentResponse> listAppointments(Long patientId, Long doctorId, Long departmentId, String status, int page, int limit);
 
     AppointmentResponse getAppointment(Long id);
 
     AppointmentResponse cancelAppointment(Long id, AppointmentCancelRequest request);
 }
-
