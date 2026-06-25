@@ -136,7 +136,7 @@ class ClinicalPersistenceTest {
     }
 
     @Test
-    void testRequestAuditAndFinishPersistStatus() {
+    void testRequestAuditPayAndFinishPersistStatus() {
         Map createResponse = restTemplate.postForObject("/test-requests", Map.of(
                 "recordId", 9104,
                 "patientId", 9204,
@@ -152,6 +152,24 @@ class ClinicalPersistenceTest {
                 "auditResult", "approved",
                 "auditOpinion", "同意检查"
         ), Map.class);
+
+        ResponseEntity<Map> earlyResultResponse = restTemplate.exchange(
+                "/test-requests/" + testId.longValue(),
+                HttpMethod.PUT,
+                new HttpEntity<>(Map.of("resultContent", "未支付时不能归档")),
+                Map.class
+        );
+        HttpHeaders patientHeaders = new HttpHeaders();
+        patientHeaders.add("X-User-Id", "9204");
+        patientHeaders.add("X-Username", "patient_demo");
+        patientHeaders.add("X-Role-Code", "patient");
+        patientHeaders.add("X-User-Table", "huanzhe");
+        ResponseEntity<Map> payResponse = restTemplate.exchange(
+                "/test-requests/" + testId.longValue() + "/pay",
+                HttpMethod.POST,
+                new HttpEntity<>(Map.of(), patientHeaders),
+                Map.class
+        );
         restTemplate.put("/test-requests/" + testId.longValue(), Map.of(
                 "resultContent", "检查结果正常"
         ));
@@ -169,6 +187,9 @@ class ClinicalPersistenceTest {
         );
 
         assertThat(auditResponse).containsEntry("code", 0);
+        assertThat(earlyResultResponse.getBody()).containsEntry("code", 400);
+        assertThat(earlyResultResponse.getBody()).containsEntry("message", "检查申请未支付，不能填写结果");
+        assertThat(payResponse.getBody()).containsEntry("code", 0);
         assertThat(detailResponse).containsEntry("code", 0);
         assertThat(status).isEqualTo("finished");
         assertThat(rows).hasSize(1);

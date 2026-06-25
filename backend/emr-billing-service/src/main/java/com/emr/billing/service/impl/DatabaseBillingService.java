@@ -2,12 +2,15 @@ package com.emr.billing.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.emr.billing.entity.FeeEntity;
+import com.emr.billing.entity.FeeItemEntity;
 import com.emr.billing.mapper.FeeMapper;
+import com.emr.billing.mapper.FeeItemMapper;
 import com.emr.billing.service.BillingService;
 import com.emr.common.PageResult;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -27,18 +30,36 @@ public class DatabaseBillingService implements BillingService {
     private static final DateTimeFormatter DATETIME_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
     private final FeeMapper feeMapper;
+    private final FeeItemMapper feeItemMapper;
 
-    public DatabaseBillingService(FeeMapper feeMapper) {
+    public DatabaseBillingService(FeeMapper feeMapper, FeeItemMapper feeItemMapper) {
         this.feeMapper = feeMapper;
+        this.feeItemMapper = feeItemMapper;
+    }
+
+    /**
+     * 查询启用的标准费用项目。
+     * 新增费用表单依赖这个列表选择收费项，避免医生或护士自由输入金额。
+     */
+    @Override
+    public List<Map<String, Object>> listFeeItems() {
+        return feeItemMapper.selectList(new LambdaQueryWrapper<FeeItemEntity>()
+                        .eq(FeeItemEntity::getEnabled, true)
+                        .orderByAsc(FeeItemEntity::getSortOrder)
+                        .orderByAsc(FeeItemEntity::getId))
+                .stream()
+                .map(this::toFeeItemRow)
+                .toList();
     }
 
     /**
      * 新增费用记录。
-     * 金额收敛为 BigDecimal，并把老前端的 relatedBusiness 字段统一映射到当前业务来源字段。
+     * 费用项目和金额必须来自启用的配置项，手填 amount 只保留兼容入参但不参与落库金额计算。
      */
     @Override
     public Map<String, Object> createFee(Map<String, Object> request) {
         Map<String, Object> payload = safePayload(request);
+        FeeItemEntity feeItem = requireEnabledFeeItem(payload);
 
         FeeEntity entity = new FeeEntity();
         entity.setFeeNo(buildFeeNo());
@@ -46,8 +67,9 @@ public class DatabaseBillingService implements BillingService {
         entity.setPatientName(requireText(payload.get("patientName"), "患者姓名不能为空"));
         entity.setBusinessType(resolveBusinessType(payload));
         entity.setBusinessId(resolveBusinessId(payload));
-        entity.setFeeItem(requireText(firstPresent(payload, "feeItem", "feeType"), "费用项目不能为空"));
-        entity.setAmount(requireAmount(payload.get("amount")));
+        entity.setFeeItemCode(feeItem.getItemCode());
+        entity.setFeeItem(feeItem.getItemName());
+        entity.setAmount(normalizeAmount(feeItem.getAmount()));
         entity.setPayStatus("unpaid");
         entity.setPayTime(null);
         entity.setRemark(blankToNull(payload.get("remark")));
@@ -106,11 +128,14 @@ public class DatabaseBillingService implements BillingService {
         if (payload.containsKey("businessId") || payload.containsKey("relatedBusinessId")) {
             entity.setBusinessId(resolveBusinessId(payload));
         }
-        if (payload.containsKey("feeItem") || payload.containsKey("feeType")) {
-            entity.setFeeItem(requireText(firstPresent(payload, "feeItem", "feeType"), "费用项目不能为空"));
+        if (payload.containsKey("feeItemCode") || payload.containsKey("itemCode") || payload.containsKey("feeItem") || payload.containsKey("feeType")) {
+            FeeItemEntity feeItem = requireEnabledFeeItem(payload);
+            entity.setFeeItemCode(feeItem.getItemCode());
+            entity.setFeeItem(feeItem.getItemName());
+            entity.setAmount(normalizeAmount(feeItem.getAmount()));
         }
         if (payload.containsKey("amount")) {
-            entity.setAmount(requireAmount(payload.get("amount")));
+            throw new IllegalArgumentException("费用金额必须由费用项目配置决定");
         }
         if (payload.containsKey("remark")) {
             entity.setRemark(blankToNull(payload.get("remark")));
@@ -170,11 +195,25 @@ public class DatabaseBillingService implements BillingService {
         row.put("patientName", entity.getPatientName());
         row.put("businessType", entity.getBusinessType());
         row.put("businessId", entity.getBusinessId());
+        row.put("feeItemCode", entity.getFeeItemCode());
         row.put("feeItem", entity.getFeeItem());
         row.put("amount", entity.getAmount());
         row.put("payStatus", entity.getPayStatus());
         row.put("status", entity.getPayStatus());
         row.put("payTime", formatDateTime(entity.getPayTime()));
+        row.put("remark", entity.getRemark());
+        return row;
+    }
+
+    private Map<String, Object> toFeeItemRow(FeeItemEntity entity) {
+        Map<String, Object> row = new LinkedHashMap<>();
+        row.put("id", entity.getId());
+        row.put("itemCode", entity.getItemCode());
+        row.put("itemName", entity.getItemName());
+        row.put("amount", normalizeAmount(entity.getAmount()));
+        row.put("itemCategory", entity.getItemCategory());
+        row.put("enabled", entity.getEnabled());
+        row.put("sortOrder", entity.getSortOrder());
         row.put("remark", entity.getRemark());
         return row;
     }
@@ -191,6 +230,22 @@ public class DatabaseBillingService implements BillingService {
 
     private Long resolveBusinessId(Map<String, Object> payload) {
         return optionalId(firstPresent(payload, "businessId", "relatedBusinessId"));
+    }
+
+    private FeeItemEntity requireEnabledFeeItem(Map<String, Object> payload) {
+        String itemCode = blankToNull(firstPresent(payload, "feeItemCode", "itemCode"));
+        if (itemCode == null) {
+            // 旧字段以前允许直接写中文项目名；现在仅作为兼容提示入口，不再允许绕过标准收费项。
+            throw new IllegalArgumentException("费用项目必须从配置中选择");
+        }
+        FeeItemEntity feeItem = feeItemMapper.selectOne(new LambdaQueryWrapper<FeeItemEntity>()
+                .eq(FeeItemEntity::getItemCode, itemCode)
+                .eq(FeeItemEntity::getEnabled, true)
+                .last("limit 1"));
+        if (feeItem == null) {
+            throw new IllegalArgumentException("费用项目不存在或已停用");
+        }
+        return feeItem;
     }
 
     private String formatDateTime(LocalDateTime value) {
@@ -246,7 +301,7 @@ public class DatabaseBillingService implements BillingService {
         return text;
     }
 
-    private BigDecimal requireAmount(Object value) {
+    private BigDecimal normalizeAmount(Object value) {
         if (value == null) {
             throw new IllegalArgumentException("费用金额不能为空");
         }
@@ -259,7 +314,7 @@ public class DatabaseBillingService implements BillingService {
         if (amount.compareTo(BigDecimal.ZERO) < 0) {
             throw new IllegalArgumentException("费用金额不能为负数");
         }
-        return amount.setScale(2, BigDecimal.ROUND_HALF_UP);
+        return amount.setScale(2, RoundingMode.HALF_UP);
     }
 
     private String blankToNull(Object value) {

@@ -26,12 +26,55 @@ class BillingPersistenceTest {
     private JdbcTemplate jdbcTemplate;
 
     @Test
-    void createFeePersistsToBillingTable() {
+    void listFeeItemsReturnsOnlyEnabledConfiguredItems() {
+        jdbcTemplate.update(
+                "insert into fee_items (item_code, item_name, amount, item_category, enabled, sort_order) values (?, ?, ?, ?, ?, ?)",
+                "registration",
+                "挂号费",
+                new BigDecimal("30.00"),
+                "门诊",
+                true,
+                2
+        );
+        jdbcTemplate.update(
+                "insert into fee_items (item_code, item_name, amount, item_category, enabled, sort_order) values (?, ?, ?, ?, ?, ?)",
+                "disabled_item",
+                "停用项目",
+                new BigDecimal("99.00"),
+                "其他",
+                false,
+                1
+        );
+
+        Map response = restTemplate.getForObject("/fee-items", Map.class);
+        List<?> rows = (List<?>) response.get("data");
+
+        assertThat(response).containsEntry("code", 0);
+        assertThat(rows).anySatisfy(item -> {
+            Map row = (Map) item;
+            assertThat(row).containsEntry("itemCode", "registration");
+            assertThat(row).containsEntry("itemName", "挂号费");
+        });
+        assertThat(rows).noneSatisfy(item -> assertThat((Map) item).containsEntry("itemCode", "disabled_item"));
+    }
+
+    @Test
+    void createFeeUsesConfiguredItemAmount() {
+        jdbcTemplate.update(
+                "insert into fee_items (item_code, item_name, amount, item_category, enabled, sort_order) values (?, ?, ?, ?, ?, ?)",
+                "registration_configured",
+                "挂号费",
+                new BigDecimal("30.00"),
+                "门诊",
+                true,
+                1
+        );
+
         Map response = restTemplate.postForObject("/fees", Map.of(
                 "patientId", 8101,
                 "patientName", "收费患者",
-                "feeItem", "检验费",
-                "amount", 58.50,
+                "feeItemCode", "registration_configured",
+                "amount", 999.99,
                 "remark", "门诊收费"
         ), Map.class);
 
@@ -39,13 +82,63 @@ class BillingPersistenceTest {
                 "select count(*) from feiyong where patient_id = ? and fee_item = ? and amount = ? and pay_status = ?",
                 Integer.class,
                 8101L,
-                "检验费",
-                new BigDecimal("58.50"),
+                "挂号费",
+                new BigDecimal("30.00"),
                 "unpaid"
         );
+        Map data = (Map) response.get("data");
 
         assertThat(response).containsEntry("code", 0);
+        assertThat(data).containsEntry("feeItemCode", "registration_configured");
         assertThat(rowCount).isEqualTo(1);
+    }
+
+    @Test
+    void createTestRequestFeeUsesConfiguredHundredAmount() {
+        Map response = restTemplate.postForObject("/fees", Map.of(
+                "patientId", 8102,
+                "patientName", "检查缴费患者",
+                "businessType", "test_request",
+                "businessId", 9102,
+                "feeItemCode", "test_request_check"
+        ), Map.class);
+
+        Integer rowCount = jdbcTemplate.queryForObject(
+                "select count(*) from feiyong where patient_id = ? and business_type = ? and business_id = ? and fee_item_code = ? and amount = ? and pay_status = ?",
+                Integer.class,
+                8102L,
+                "test_request",
+                9102L,
+                "test_request_check",
+                new BigDecimal("100.00"),
+                "unpaid"
+        );
+        Map data = (Map) response.get("data");
+
+        assertThat(response).containsEntry("code", 0);
+        assertThat(data).containsEntry("feeItemCode", "test_request_check");
+        assertThat(rowCount).isEqualTo(1);
+    }
+
+    @Test
+    void createFeeRejectsMissingConfiguredItem() {
+        Map response = restTemplate.postForObject("/fees", Map.of(
+                "patientId", 8101,
+                "patientName", "收费患者",
+                "feeItem", "检验费",
+                "remark", "门诊收费"
+        ), Map.class);
+
+        Integer rowCount = jdbcTemplate.queryForObject(
+                "select count(*) from feiyong where patient_id = ? and fee_item = ?",
+                Integer.class,
+                8101L,
+                "检验费"
+        );
+
+        assertThat(response).containsEntry("code", 400);
+        assertThat(response).containsEntry("message", "费用项目必须从配置中选择");
+        assertThat(rowCount).isZero();
     }
 
     @Test

@@ -93,4 +93,29 @@ class AppointmentControllerTest {
         assertThat(cancelled).containsEntry("status", "cancelled");
         assertThat(cancelled).containsEntry("cancelReason", "时间冲突");
     }
+
+    @Test
+    void confirmAppointmentChangesPendingToConfirmed() {
+        Map<String, Object> request = Map.of(
+                "patientId", 3002,
+                "patientName", "确认患者",
+                "doctorId", 1,
+                "doctorName", "王医生",
+                "departmentId", 1,
+                "departmentName", "心内科",
+                "appointmentTime", "2026-06-25 14:00:00"
+        );
+        Map createResponse = restTemplate.postForObject("/appointments", request, Map.class);
+        Number id = (Number) ((Map<?, ?>) createResponse.get("data")).get("id");
+
+        Map confirmResponse = restTemplate.postForObject(
+                "/appointments/" + id.longValue() + "/confirm",
+                Map.of(),
+                Map.class
+        );
+        Map confirmed = (Map) confirmResponse.get("data");
+
+        assertThat(confirmResponse).containsEntry("code", 0);
+        assertThat(confirmed).containsEntry("status", "confirmed");
+    }
 }

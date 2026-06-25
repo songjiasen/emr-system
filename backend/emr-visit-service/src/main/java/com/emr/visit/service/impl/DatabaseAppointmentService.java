@@ -97,6 +97,27 @@ public class DatabaseAppointmentService implements AppointmentService {
     }
 
     /**
+     * 医生确认预约。
+     * 只允许待确认预约进入 confirmed，保证患者预约后必须先被医生接收再进入后续接诊演示。
+     */
+    @Override
+    public AppointmentResponse confirmAppointment(Long id) {
+        AppointmentEntity entity = requireAppointment(id);
+        if ("cancelled".equals(entity.getStatus())) {
+            throw new IllegalArgumentException("已取消预约不能确认");
+        }
+        if ("finished".equals(entity.getStatus()) || "completed".equals(entity.getStatus())) {
+            throw new IllegalArgumentException("已完成预约不能确认");
+        }
+        if (!"pending".equals(entity.getStatus()) && !"confirmed".equals(entity.getStatus())) {
+            throw new IllegalArgumentException("当前预约状态不能确认");
+        }
+        entity.setStatus("confirmed");
+        appointmentMapper.updateById(entity);
+        return toResponse(entity);
+    }
+
+    /**
      * 取消预约并落库取消原因。
      * 已完成预约仍然禁止取消，保持原有业务约束不变。
      */

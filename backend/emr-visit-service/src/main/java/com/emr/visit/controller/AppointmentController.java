@@ -111,6 +111,24 @@ public class AppointmentController {
     }
 
     /**
+     * 医生确认预约。
+     * 确认前先按当前登录医生校验预约归属，避免医生误确认他人的患者预约。
+     */
+    @PostMapping("/appointments/{id}/confirm")
+    public ApiResponse<AppointmentResponse> confirmAppointment(
+            @PathVariable("id") Long id,
+            @RequestHeader(value = "X-User-Id", required = false) String userIdHeader,
+            @RequestHeader(value = "X-Username", required = false) String username,
+            @RequestHeader(value = "X-Role-Code", required = false) String roleCode,
+            @RequestHeader(value = "X-User-Table", required = false) String tableName
+    ) {
+        TrustedUserContext context = TrustedUserContext.fromHeaders(userIdHeader, username, roleCode, tableName);
+        AppointmentResponse current = appointmentService.getAppointment(id);
+        ensureAppointmentAccess(context, current, "确认");
+        return ApiResponse.success(appointmentService.confirmAppointment(id));
+    }
+
+    /**
      * 取消预约。
      * 当前由患者端触发，后续可结合 Token 校验限制只能取消自己的预约。
      */

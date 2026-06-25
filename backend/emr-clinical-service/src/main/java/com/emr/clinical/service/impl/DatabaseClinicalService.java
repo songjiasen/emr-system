@@ -257,8 +257,13 @@ public class DatabaseClinicalService implements ClinicalService {
         if (payload.containsKey("testItem")) entity.setTestItem(requireText(payload.get("testItem"), "检查项目不能为空"));
         if (payload.containsKey("testReason")) entity.setTestReason(blankToNull(payload.get("testReason")));
         if (payload.containsKey("resultContent")) {
-            entity.setResultContent(blankToNull(payload.get("resultContent")));
-            if (("approved".equals(entity.getStatus()) || "paid".equals(entity.getStatus())) && blankToNull(payload.get("resultContent")) != null) {
+            String resultContent = blankToNull(payload.get("resultContent"));
+            // 检查结果只能在患者完成检查缴费后填写，避免审核通过但未付费的申请被提前归档。
+            if (resultContent != null && !"paid".equals(entity.getStatus()) && !"finished".equals(entity.getStatus())) {
+                throw new IllegalArgumentException("检查申请未支付，不能填写结果");
+            }
+            entity.setResultContent(resultContent);
+            if ("paid".equals(entity.getStatus()) && resultContent != null) {
                 entity.setStatus("finished");
             }
         }

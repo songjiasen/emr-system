@@ -6,6 +6,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.client.TestRestTemplate;
 import org.springframework.jdbc.core.JdbcTemplate;
 
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -93,11 +94,12 @@ class UserPersistenceTest {
                 "后台管理员"
         );
         Integer patientCount = jdbcTemplate.queryForObject(
-                "select count(*) from huanzhe where username = ? and name = ? and phone = ? and status = 1",
+                "select count(*) from huanzhe where username = ? and name = ? and phone = ? and balance = ? and status = 1",
                 Integer.class,
                 patientUsername,
                 "住院患者",
-                "13712345678"
+                "13712345678",
+                new BigDecimal("500.00")
         );
         String adminPassword = jdbcTemplate.queryForObject(
                 "select password from users where username = ?",

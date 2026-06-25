@@ -99,6 +99,20 @@ class AuthPersistenceTest {
     }
 
     @Test
+    void doctorHeartDemoAccountCanLogin() {
+        Map loginResponse = restTemplate.postForObject("/auth/login", Map.of(
+                "username", "doctor_heart",
+                "password", "123456",
+                "roleCode", "doctor"
+        ), Map.class);
+        Map loginData = (Map) loginResponse.get("data");
+
+        assertThat(loginResponse).containsEntry("code", 0);
+        assertThat(loginData).containsEntry("username", "doctor_heart");
+        assertThat(loginData).containsEntry("roleCode", "doctor");
+    }
+
+    @Test
     void nurseLoginAndTokenValidationReturnDepartmentScope() {
         String username = "nurse_scope_" + UUID.randomUUID().toString().replace("-", "").substring(0, 8);
         String password = "nurse123";

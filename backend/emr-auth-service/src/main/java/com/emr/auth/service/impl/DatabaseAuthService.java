@@ -72,6 +72,7 @@ public class DatabaseAuthService implements AuthService {
         ensureSystemUser("admin", "admin123", "系统管理员", "13800000000", "admin");
         ensureSystemUser("super_admin", "admin123", "超级管理员", "13800000001", "super_admin");
         ensureDoctor("doctor", "123456", "演示医生", "13800000002");
+        ensureDoctor("doctor_heart", "123456", "王医生", "13900000001", 1L, "心内科");
         ensureSystemUser("nurse", "123456", "演示护士", "13800000003", "nurse");
         ensureSystemUser("director", "123456", "演示主任", "13800000004", "director");
         ensurePatient("patient_demo", "123456", "患者演示", "13800000005", "男");
@@ -346,6 +347,14 @@ public class DatabaseAuthService implements AuthService {
      * 医生账号单独落在 `yisheng` 表，便于后续和医生资料查询继续共用一份主数据。
      */
     private void ensureDoctor(String username, String password, String name, String phone) {
+        ensureDoctor(username, password, name, phone, null, null);
+    }
+
+    /**
+     * 兜底初始化医生演示账号。
+     * 测试流程使用 `doctor_heart` 预约和确认，认证侧也写入科室，避免服务启动顺序影响登录后的科室上下文。
+     */
+    private void ensureDoctor(String username, String password, String name, String phone, Long departmentId, String departmentName) {
         if (doctorAccountMapper.selectCount(new LambdaQueryWrapper<DoctorAccountEntity>()
                 .eq(DoctorAccountEntity::getUsername, username)) > 0) {
             return;
@@ -355,6 +364,8 @@ public class DatabaseAuthService implements AuthService {
         entity.setPassword(passwordEncoder.encode(password));
         entity.setName(name);
         entity.setPhone(phone);
+        entity.setDepartmentId(departmentId);
+        entity.setDepartmentName(departmentName);
         entity.setStatus(1);
         doctorAccountMapper.insert(entity);
     }

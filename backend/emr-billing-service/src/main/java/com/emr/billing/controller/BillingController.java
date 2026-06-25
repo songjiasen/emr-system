@@ -18,6 +18,7 @@ import org.springframework.web.client.RestTemplate;
 
 import java.math.BigDecimal;
 
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -33,6 +34,11 @@ public class BillingController {
     public BillingController(BillingService billingService, RestTemplate restTemplate) {
         this.billingService = billingService;
         this.restTemplate = restTemplate;
+    }
+
+    @GetMapping("/fee-items")
+    public ApiResponse<List<Map<String, Object>>> listFeeItems() {
+        return ApiResponse.success(billingService.listFeeItems());
     }
 
     @PostMapping("/fees")

@@ -164,8 +164,9 @@
                 <el-form-item label="状态">
                   <el-select v-model="appointmentFilterForm.status" clearable placeholder="全部状态">
                     <el-option label="待就诊" value="pending" />
+                    <el-option label="已确认" value="confirmed" />
                     <el-option label="已取消" value="cancelled" />
-                    <el-option label="已完成" value="completed" />
+                    <el-option label="已完成" value="finished" />
                   </el-select>
                 </el-form-item>
                 <div class="button-row">
@@ -194,9 +195,10 @@
                 <el-table-column prop="appointmentTime" label="预约时间" min-width="150" />
                 <el-table-column prop="status" label="状态" width="100" :formatter="statusFormatter" />
                 <el-table-column prop="cancelReason" label="取消原因" min-width="140" />
-                <el-table-column label="操作" width="150">
+                <el-table-column label="操作" width="180">
                   <template #default="{ row }">
                     <el-button v-if="isNurseRole()" link type="primary" :disabled="row.status !== 'pending'" @click.stop="openTriageFromAppointment(row)">分诊</el-button>
+                    <el-button v-else-if="isDoctorRole() && row.status === 'pending'" link type="primary" @click.stop="confirmAppointmentAction(row)">确认</el-button>
                     <el-button v-else link type="danger" :disabled="row.status === 'cancelled'" @click.stop="cancelAppointmentAction(row)">取消</el-button>
                   </template>
                 </el-table-column>
@@ -493,7 +495,7 @@
                 <el-table-column prop="patientName" label="患者" min-width="90" />
                 <el-table-column prop="bedNo" label="床位" width="100" />
                 <el-table-column prop="status" label="状态" width="110" :formatter="statusFormatter" />
-                <el-table-column label="操作" width="100">
+                <el-table-column label="操作" width="130">
                   <template #default="{ row }">
                     <el-button link type="primary" @click.stop="openDischargeDialog(row)">办理出院</el-button>
                   </template>
@@ -740,6 +742,7 @@
                 <el-table-column label="操作" width="100">
                   <template #default="{ row }">
                     <el-button v-if="canAccessAdminTab('workflow-audits') && row.status === 'pending_audit'" link type="primary" @click="auditTestAction(row)">审核</el-button>
+                    <el-button v-if="row.status === 'paid'" link type="success" @click.stop="openTestRequestDialog('edit', row)">填写结果</el-button>
                     <el-button v-if="row.status === 'pending_audit'" link @click.stop="openTestRequestDialog('edit', row)">编辑</el-button>
                   </template>
                 </el-table-column>
@@ -778,7 +781,7 @@
                 <el-form-item label="检查原因">
                   <el-input v-model="testRequestForm.testReason" />
                 </el-form-item>
-                <el-form-item v-if="testRequestDialogMode === 'edit' && (testRequestForm.status === 'paid' || testRequestForm.status === 'approved')" label="检查结果">
+                <el-form-item v-if="testRequestDialogMode === 'edit' && (testRequestForm.status === 'paid' || testRequestForm.resultContent)" label="检查结果">
                   <el-input v-model="testRequestForm.resultContent" type="textarea" :rows="3" />
                 </el-form-item>
                 <div class="dialog-footer">
@@ -944,6 +947,7 @@
               <el-table :data="fees" height="360">
                 <el-table-column prop="feeNo" label="费用号" min-width="130" />
                 <el-table-column prop="patientName" label="患者" min-width="100" />
+                <el-table-column prop="feeItem" label="费用项目" min-width="110" />
                 <el-table-column prop="amount" label="金额" width="100" />
                 <el-table-column prop="status" label="状态" width="100" :formatter="statusFormatter" />
                 <el-table-column label="操作" width="100">
@@ -978,10 +982,17 @@
                   <el-input v-model="feeForm.patientName" disabled />
                 </el-form-item>
                 <el-form-item label="费用类型">
-                  <el-input v-model="feeForm.feeType" />
+                  <el-select v-model="feeForm.feeItemCode" filterable placeholder="选择费用项目" @change="syncFeeItemToForm">
+                    <el-option
+                      v-for="item in feeItems"
+                      :key="item.itemCode"
+                      :label="`${item.itemName}（￥${item.amount}）`"
+                      :value="item.itemCode"
+                    />
+                  </el-select>
                 </el-form-item>
                 <el-form-item label="金额">
-                  <el-input-number v-model="feeForm.amount" :min="0" :precision="2" />
+                  <el-input-number v-model="feeForm.amount" :min="0" :precision="2" disabled />
                 </el-form-item>
                 <div class="dialog-footer">
                   <el-button @click="adminDialogs.fee = false">取消</el-button>
@@ -1334,7 +1345,7 @@ import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router';
 import { ElMessage } from 'element-plus';
 import { login, logout, validateToken } from './api/auth';
-import { fetchAppointments, fetchAppointmentDetail, cancelAppointment } from './api/appointment';
+import { fetchAppointments, fetchAppointmentDetail, confirmAppointment, cancelAppointment } from './api/appointment';
 import { createDepartment, fetchDepartments, updateDepartment, deleteDepartment } from './api/department';
 import { createManagedUser, fetchManagedUsers, updateManagedUser, deleteManagedUser } from './api/userManagement';
 import { fetchDoctors as fetchPublicDoctors } from './api/doctor';
@@ -1342,7 +1353,7 @@ import { createTriageRecord, fetchTriageRecords, createAdmission, fetchAdmission
 import { createMedicalRecord, fetchMedicalRecords, fetchMedicalRecordDetail, updateMedicalRecord, deleteMedicalRecord, createMedicalRecordTemplate, fetchMedicalRecordTemplates, updateMedicalRecordTemplate, deleteMedicalRecordTemplate, createArchiveApplication, fetchArchiveApplications, auditArchiveApplication, fetchArchives } from './api/medicalRecord';
 import { createMedicalOrder, fetchMedicalOrders, updateMedicalOrder, deleteMedicalOrder, updateMedicalOrderAuditResult, executeMedicalOrder, createPrescription, fetchPrescriptions, updatePrescription, deletePrescription, createTestRequest, fetchTestRequests, updateTestAuditResult, updateTestRequest, deleteTestRequest } from './api/clinical';
 import { createWorkflowTask, fetchWorkflowTasks, auditWorkflowTask, fetchAuditRecords } from './api/workflow';
-import { createFee, fetchFees, payFee } from './api/billing';
+import { createFee, fetchFeeItems, fetchFees, payFee } from './api/billing';
 import { createNews, fetchNews, fetchMessages, replyMessage, createCarousel, fetchCarousels, deleteCarousel, saveConfig, saveMenu, fetchMenu, fetchSyslogs } from './api/system';
 import { ocrMedicalRecord, recommendMedicine, auditPrescription, smartSearch } from './api/ai';
 import { getAccessibleAdminTabs, getVisibleAdminNavGroups, isAdminTabAccessible } from './adminMenu.mjs';
@@ -1420,6 +1431,7 @@ const workflowAuditRecords = ref([]);
 const archiveApplications = ref([]);
 const archives = ref([]);
 const fees = ref([]);
+const feeItems = ref([]);
 const newsItems = ref([]);
 const messages = ref([]);
 const carousels = ref([]);
@@ -1539,7 +1551,7 @@ function makeDefaultWorkflowForm() {
 }
 
 function makeDefaultFeeForm() {
-  return { patientId: 1, patientName: '患者演示', feeType: '挂号费', amount: 30, relatedBusinessType: 'appointment', relatedBusinessId: 1 };
+  return { patientId: 1, patientName: '患者演示', feeItemCode: '', amount: 0, relatedBusinessType: 'appointment', relatedBusinessId: 1 };
 }
 
 function makeDefaultNewsForm() {
@@ -1560,6 +1572,27 @@ function makeDefaultMenuForm() {
 
 function findRelationOption(options, id) {
   return options.find((item) => item.id === id) || null;
+}
+
+function findFeeItemOption(itemCode) {
+  return feeItems.value.find((item) => item.itemCode === itemCode) || null;
+}
+
+function syncFeeItemToForm(itemCode = feeForm.value.feeItemCode) {
+  const selected = findFeeItemOption(itemCode);
+  if (!selected) {
+    feeForm.value.amount = 0;
+    return;
+  }
+  feeForm.value.feeItemCode = selected.itemCode;
+  feeForm.value.amount = Number(selected.amount || 0);
+}
+
+function applyDefaultFeeItemToForm() {
+  if (!feeForm.value.feeItemCode && feeItems.value.length > 0) {
+    feeForm.value.feeItemCode = feeItems.value[0].itemCode;
+  }
+  syncFeeItemToForm();
 }
 
 function syncPatientToForm(form, patientId) {
@@ -1713,11 +1746,13 @@ function resetAllPagers() {
 }
 
 const STATUS_TEXT = {
-  pending: '待处理',
+  pending: '待确认',
   pending_audit: '待审核',
+  confirmed: '已确认',
   approved: '已通过',
   rejected: '已驳回',
   executed: '已执行',
+  finished: '已完成',
   not_submitted: '未提交',
   archived: '已归档',
   cancelled: '已取消',
@@ -1738,6 +1773,10 @@ function statusFormatter(_row, _column, value) {
 
 function isNurseRole() {
   return adminSession.value.roleCode === 'nurse';
+}
+
+function isDoctorRole() {
+  return adminSession.value.roleCode === 'doctor';
 }
 
 /**
@@ -1842,6 +1881,7 @@ function clearAdminWorkspace() {
   archiveApplications.value = [];
   archives.value = [];
   fees.value = [];
+  feeItems.value = [];
   newsItems.value = [];
   messages.value = [];
   carousels.value = [];
@@ -1954,6 +1994,28 @@ async function cancelAppointmentAction(row) {
     const data = unwrap(await cancelAppointment(row.id, { cancelReason: '后台预约管理取消' }));
     replaceRow(appointments.value, data);
     ElMessage.success('预约已取消');
+  } catch (error) {
+    showError(error);
+  }
+}
+
+/**
+ * 医生确认本人预约。
+ * 确认后预约才进入后续接诊演示，前端只替换当前行，保留筛选和分页上下文。
+ */
+async function confirmAppointmentAction(row) {
+  if (!row?.id) {
+    ElMessage.warning('缺少预约记录，暂时无法确认');
+    return;
+  }
+
+  try {
+    const data = unwrap(await confirmAppointment(row.id));
+    replaceRow(appointments.value, data);
+    if (selectedAppointment.value?.id === data.id) {
+      selectedAppointment.value = data;
+    }
+    ElMessage.success('预约已确认');
   } catch (error) {
     showError(error);
   }
@@ -2185,8 +2247,11 @@ function openWorkflowDialog() {
   adminDialogs.workflow = true;
 }
 
-function openFeeDialog() {
+async function openFeeDialog() {
   loadRelationUsers();
+  feeForm.value = makeDefaultFeeForm();
+  await loadFeeItems();
+  applyDefaultFeeItemToForm();
   adminDialogs.fee = true;
 }
 
@@ -2963,10 +3028,23 @@ async function auditArchiveAction(row) {
 
 async function createFeeAction() {
   try {
+    if (!feeForm.value.feeItemCode) {
+      ElMessage.warning('请选择费用项目');
+      return;
+    }
     await createFee(feeForm.value);
     await loadFees();
     adminDialogs.fee = false;
     ElMessage.success('费用已新增');
+  } catch (error) {
+    showError(error);
+  }
+}
+
+async function loadFeeItems() {
+  try {
+    feeItems.value = unwrap(await fetchFeeItems()) || [];
+    applyDefaultFeeItemToForm();
   } catch (error) {
     showError(error);
   }
@@ -3255,6 +3333,7 @@ function loadWorkflowTaskContext() {
 
 function loadBillingContext() {
   loadRelationUsers();
+  loadFeeItems();
   loadFees();
 }
 

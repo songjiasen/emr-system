@@ -7,7 +7,7 @@ import com.emr.visit.vo.AppointmentResponse;
 
 /**
  * 预约挂号服务接口。
- * 覆盖需求文档中的预约挂号、预约列表、预约详情、取消预约和预约编号生成。
+ * 覆盖需求文档中的预约挂号、预约列表、预约详情、确认预约、取消预约和预约编号生成。
  */
 public interface AppointmentService {
 
@@ -16,6 +16,8 @@ public interface AppointmentService {
     PageResult<AppointmentResponse> listAppointments(Long patientId, Long doctorId, Long departmentId, String status, int page, int limit);
 
     AppointmentResponse getAppointment(Long id);
+
+    AppointmentResponse confirmAppointment(Long id);
 
     AppointmentResponse cancelAppointment(Long id, AppointmentCancelRequest request);
 }

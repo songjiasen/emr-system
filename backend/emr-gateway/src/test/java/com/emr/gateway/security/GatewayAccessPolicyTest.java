@@ -26,6 +26,8 @@ class GatewayAccessPolicyTest {
         assertThat(policy.isAllowed("patient", HttpMethod.GET, "/cl584734139/appointments")).isTrue();
         assertThat(policy.isAllowed("patient", HttpMethod.GET, "/cl584734139/medical-records")).isTrue();
         assertThat(policy.isAllowed("patient", HttpMethod.POST, "/cl584734139/fees/1/pay")).isTrue();
+        assertThat(policy.isAllowed("patient", HttpMethod.GET, "/cl584734139/user-management/patients/1/balance")).isTrue();
+        assertThat(policy.isAllowed("patient", HttpMethod.POST, "/cl584734139/user-management/patients/1/deduct-balance")).isFalse();
         assertThat(policy.isAllowed("patient", HttpMethod.GET, "/cl584734139/user-management/patients")).isFalse();
         assertThat(policy.isAllowed("patient", HttpMethod.POST, "/cl584734139/news")).isFalse();
     }

@@ -2,6 +2,7 @@ package com.emr.billing.service;
 
 import com.emr.common.PageResult;
 
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -11,8 +12,14 @@ import java.util.Map;
 public interface BillingService {
 
     /**
+     * 查询启用的费用项目配置。
+     * 供医生、护士或收费员创建费用时选择标准收费项，金额由配置统一带出。
+     */
+    List<Map<String, Object>> listFeeItems();
+
+    /**
      * 新增费用记录。
-     * 需要保证患者信息、费用项目和金额完整，同时兼容旧前端的 relatedBusiness 字段命名。
+     * 需要保证患者信息完整，费用项目和金额必须来自启用的费用项目配置。
      */
     Map<String, Object> createFee(Map<String, Object> request);
 

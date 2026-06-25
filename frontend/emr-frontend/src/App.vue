@@ -319,10 +319,12 @@
               <el-table-column prop="doctorName" label="医生" width="100" />
               <el-table-column prop="status" label="状态" width="100" :formatter="statusFormatter" />
               <el-table-column prop="auditOpinion" label="审核意见" min-width="140" />
+              <el-table-column prop="resultContent" label="检查结果" min-width="160" />
               <el-table-column label="操作" width="100">
                 <template #default="{ row }">
                   <el-button v-if="row.status === 'approved'" link type="primary" @click="goToCheckAction(row)">去检查</el-button>
                   <span v-else-if="row.status === 'paid'" class="paid-tag">已支付</span>
+                  <span v-else-if="row.status === 'finished'" class="paid-tag">已完成</span>
                 </template>
               </el-table-column>
             </el-table>
@@ -679,11 +681,13 @@ function changePage(pagerKey, page, loader) {
 }
 
 const STATUS_TEXT = {
-  pending: '待处理',
+  pending: '待确认',
   pending_audit: '待审核',
+  confirmed: '已确认',
   approved: '已通过',
   rejected: '已驳回',
   executed: '已执行',
+  finished: '已完成',
   not_submitted: '未提交',
   archived: '已归档',
   cancelled: '已取消',
@@ -976,6 +980,9 @@ async function loadPatientBalance() {
 async function payFeeAction(row) {
   try {
     unwrap(await payFee(row.id));
+    if (row?.businessType === 'test_request' && row?.businessId) {
+      unwrap(await payTestRequest(row.businessId));
+    }
     await loadFees();
     await loadTestRequests();
     ElMessage.success('支付成功');
@@ -986,16 +993,25 @@ async function payFeeAction(row) {
 
 async function goToCheckAction(row) {
   try {
-    unwrap(await createFee({
+    const existingFeePage = unwrap(await fetchFees({
       patientId: currentPatient.value.patientId,
-      patientName: session.value.name || session.value.username,
       businessType: 'test_request',
       businessId: row.id,
-      feeItem: row.testItem || '检查费用',
-      amount: 100
+      payStatus: 'unpaid',
+      page: 1,
+      limit: 1
     }));
-    unwrap(await payTestRequest(row.id));
-    await loadTestRequests();
+    const existingFee = rowsOf(existingFeePage)[0];
+    if (!existingFee) {
+      unwrap(await createFee({
+        patientId: currentPatient.value.patientId,
+        patientName: currentPatient.value.patientName || session.value.name || session.value.username,
+        businessType: 'test_request',
+        businessId: row.id,
+        feeItemCode: 'test_request_check'
+      }));
+    }
+    pagers.fees.page = 1;
     ElMessage.success('已生成检查费用，请支付');
     activeTab.value = 'fees';
     await loadFees();

@@ -21,6 +21,7 @@ public class FeeEntity {
     private String patientName;
     private String businessType;
     private Long businessId;
+    private String feeItemCode;
     private String feeItem;
     private BigDecimal amount;
     private String payStatus;
@@ -75,6 +76,14 @@ public class FeeEntity {
 
     public void setBusinessId(Long businessId) {
         this.businessId = businessId;
+    }
+
+    public String getFeeItemCode() {
+        return feeItemCode;
+    }
+
+    public void setFeeItemCode(String feeItemCode) {
+        this.feeItemCode = feeItemCode;
     }
 
     public String getFeeItem() {

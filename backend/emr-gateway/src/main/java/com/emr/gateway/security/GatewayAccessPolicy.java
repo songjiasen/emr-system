@@ -73,6 +73,12 @@ public class GatewayAccessPolicy {
         if (pathStartsWith(path, "/fees")) {
             return HttpMethod.GET.equals(method) || HttpMethod.POST.equals(method);
         }
+        // 患者端只需要读取余额用于支付页展示；扣款仍由计费服务内部调用用户服务完成。
+        if (pathStartsWith(path, "/user-management/patients")
+                && HttpMethod.GET.equals(method)
+                && path.endsWith("/balance")) {
+            return true;
+        }
         return false;
     }
 

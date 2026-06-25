@@ -4,6 +4,10 @@ export function createFee(data) {
   return request.post('/fees', data);
 }
 
+export function fetchFeeItems() {
+  return request.get('/fee-items');
+}
+
 export function fetchFees(params = {}) {
   return request.get('/fees', { params });
 }
