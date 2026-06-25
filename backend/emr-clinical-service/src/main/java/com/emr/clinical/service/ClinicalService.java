@@ -28,4 +28,5 @@ public interface ClinicalService {
     Map<String, Object> updateTestRequest(Long id, Map<String, Object> request);
     Map<String, Object> deleteTestRequest(Long id);
     Map<String, Object> updateTestAuditResult(Long id, Map<String, Object> request);
+    Map<String, Object> payTestRequest(Long id);
 }

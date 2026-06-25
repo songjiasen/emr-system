@@ -193,7 +193,14 @@
                 </el-select>
               </el-form-item>
               <el-form-item label="预约时间">
-                <el-input v-model="appointmentForm.appointmentTime" placeholder="2026-06-23 09:00:00" />
+                <el-date-picker
+                  v-model="appointmentForm.appointmentTime"
+                  type="datetime"
+                  format="YYYY-MM-DD HH:mm:ss"
+                  value-format="YYYY-MM-DD HH:mm:ss"
+                  placeholder="请选择预约时间"
+                  style="width:100%"
+                />
               </el-form-item>
               <el-form-item label="备注">
                 <el-input v-model="appointmentForm.remark" type="textarea" :rows="3" />
@@ -246,7 +253,10 @@
           <div class="panel">
             <div class="panel-head">
               <h2>费用支付</h2>
-              <el-button @click="loadFees">刷新</el-button>
+              <div>
+                <span class="balance-badge">余额：¥{{ patientBalance }}</span>
+                <el-button @click="loadFees">刷新</el-button>
+              </div>
             </div>
             <el-table :data="fees" height="360">
               <el-table-column prop="feeNo" label="费用号" min-width="130" />
@@ -255,7 +265,8 @@
               <el-table-column prop="status" label="状态" width="100" :formatter="statusFormatter" />
               <el-table-column label="操作" width="100">
                 <template #default="{ row }">
-                  <el-button link type="primary" @click="payFeeAction(row)">支付</el-button>
+                  <el-button v-if="row.status === 'unpaid'" link type="primary" @click="payFeeAction(row)">支付</el-button>
+                  <span v-else-if="row.status === 'paid'" class="paid-tag">已支付</span>
                 </template>
               </el-table-column>
             </el-table>
@@ -308,6 +319,12 @@
               <el-table-column prop="doctorName" label="医生" width="100" />
               <el-table-column prop="status" label="状态" width="100" :formatter="statusFormatter" />
               <el-table-column prop="auditOpinion" label="审核意见" min-width="140" />
+              <el-table-column label="操作" width="100">
+                <template #default="{ row }">
+                  <el-button v-if="row.status === 'approved'" link type="primary" @click="goToCheckAction(row)">去检查</el-button>
+                  <span v-else-if="row.status === 'paid'" class="paid-tag">已支付</span>
+                </template>
+              </el-table-column>
             </el-table>
             <el-pagination
               background
@@ -465,10 +482,11 @@ import { changePassword, login, logout, registerPatient, validateToken } from '.
 import { fetchDoctors } from './api/doctor';
 import { createAppointment, fetchAppointments, cancelAppointment } from './api/appointment';
 import { fetchMedicalRecords, fetchMedicalRecordDetail } from './api/medicalRecord';
-import { fetchFees, payFee } from './api/billing';
-import { fetchPrescriptions, fetchTestRequests } from './api/clinical';
+import { fetchFees, payFee, createFee } from './api/billing';
+import { fetchPrescriptions, fetchTestRequests, payTestRequest } from './api/clinical';
 import { createMessage, fetchCarousels, fetchMessages, fetchNews } from './api/system';
 import { recommendMedicine, smartSearch } from './api/ai';
+import request from './utils/request';
 import { AUTH_EVENT_NAME, clearAuthState, getStoredToken, readStoredSession, saveAuthState } from './utils/session';
 
 const route = useRoute();
@@ -483,6 +501,7 @@ const appointments = ref([]);
 const records = ref([]);
 const selectedRecordDetail = ref(null);
 const fees = ref([]);
+const patientBalance = ref('0.00');
 const prescriptions = ref([]);
 const testRequests = ref([]);
 const newsList = ref([]);
@@ -512,7 +531,7 @@ const appointmentForm = ref({
   doctorName: '王医生',
   departmentId: 1,
   departmentName: '心内科',
-  appointmentTime: '2026-06-23 09:00:00',
+  appointmentTime: tomorrowDefaultTime(),
   remark: '复诊咨询'
 });
 const messageForm = ref({
@@ -599,12 +618,20 @@ const patientPageSubtitle = computed(() => patientPageMeta[activeTab.value]?.[1]
 const patientAvatarText = computed(() => String(session.value.name || session.value.username || '患').slice(0, 1));
 
 function resolvePatientTab(tabName) {
-  return patientNavItems.some((item) => item.name === tabName) ? tabName : 'home';
+  const items = patientNavItems;
+  if (!items || items.length === 0) {
+    return 'home';
+  }
+  return items.some((item) => item.name === tabName) ? tabName : 'home';
 }
 
 function findPatientNavItem(tabName) {
+  const items = patientNavItems;
+  if (!items || items.length === 0) {
+    return null;
+  }
   const safeTab = resolvePatientTab(tabName);
-  return patientNavItems.find((item) => item.name === safeTab) || patientNavItems[0];
+  return items.find((item) => item.name === safeTab) || items[0];
 }
 
 function isPatientGroupActive(group) {
@@ -617,6 +644,14 @@ function goToPatientTab(tabName) {
     return;
   }
   router.push({ name: item.name });
+}
+
+function tomorrowDefaultTime() {
+  const d = new Date();
+  d.setDate(d.getDate() + 1);
+  d.setHours(9, 0, 0, 0);
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
 }
 
 function unwrap(response) {
@@ -923,16 +958,47 @@ async function selectRecordDetail(row) {
 async function loadFees() {
   try {
     applyPageData(fees, 'fees', unwrap(await fetchFees({ patientId: currentPatient.value.patientId, page: pagers.fees.page, limit: pagers.fees.limit })));
+    await loadPatientBalance();
   } catch (error) {
     showError(error);
   }
 }
 
+async function loadPatientBalance() {
+  try {
+    const data = unwrap(await request.get(`/user-management/patients/${currentPatient.value.patientId}/balance`));
+    patientBalance.value = Number(data).toFixed(2);
+  } catch {
+    patientBalance.value = '0.00';
+  }
+}
+
 async function payFeeAction(row) {
   try {
-    await payFee(row.id);
+    unwrap(await payFee(row.id));
     await loadFees();
+    await loadTestRequests();
     ElMessage.success('支付成功');
+  } catch (error) {
+    showError(error);
+  }
+}
+
+async function goToCheckAction(row) {
+  try {
+    unwrap(await createFee({
+      patientId: currentPatient.value.patientId,
+      patientName: session.value.name || session.value.username,
+      businessType: 'test_request',
+      businessId: row.id,
+      feeItem: row.testItem || '检查费用',
+      amount: 100
+    }));
+    unwrap(await payTestRequest(row.id));
+    await loadTestRequests();
+    ElMessage.success('已生成检查费用，请支付');
+    activeTab.value = 'fees';
+    await loadFees();
   } catch (error) {
     showError(error);
   }
@@ -1614,5 +1680,26 @@ h2 {
   .session {
     justify-content: flex-start;
   }
+}
+
+.balance-badge {
+  display: inline-block;
+  padding: 4px 14px;
+  margin-right: 12px;
+  color: #0b74b8;
+  background: #dbeafe;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.paid-tag {
+  display: inline-block;
+  padding: 2px 10px;
+  color: #16a34a;
+  background: #dcfce7;
+  border-radius: 4px;
+  font-size: 13px;
+  font-weight: 500;
 }
 </style>

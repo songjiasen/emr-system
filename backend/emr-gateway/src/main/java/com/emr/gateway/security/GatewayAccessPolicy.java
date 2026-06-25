@@ -64,12 +64,14 @@ public class GatewayAccessPolicy {
             return true;
         }
         if (pathStartsWith(path, "/medical-records")
-                || pathStartsWith(path, "/prescriptions")
-                || pathStartsWith(path, "/test-requests")) {
+                || pathStartsWith(path, "/prescriptions")) {
             return HttpMethod.GET.equals(method);
         }
-        if (pathStartsWith(path, "/fees")) {
+        if (pathStartsWith(path, "/test-requests")) {
             return HttpMethod.GET.equals(method) || (HttpMethod.POST.equals(method) && path.endsWith("/pay"));
+        }
+        if (pathStartsWith(path, "/fees")) {
+            return HttpMethod.GET.equals(method) || HttpMethod.POST.equals(method);
         }
         return false;
     }

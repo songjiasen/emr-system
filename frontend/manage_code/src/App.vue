@@ -419,7 +419,14 @@
                   </el-form-item>
                 </div>
                 <el-form-item label="就诊时间">
-                  <el-input v-model="recordForm.visitTime" placeholder="2026-06-22 10:00:00" />
+                  <el-date-picker
+                    v-model="recordForm.visitTime"
+                    type="datetime"
+                    format="YYYY-MM-DD HH:mm:ss"
+                    value-format="YYYY-MM-DD HH:mm:ss"
+                    placeholder="选择就诊时间"
+                    style="width:100%"
+                  />
                 </el-form-item>
                 <el-form-item label="主诉">
                   <el-input v-model="recordForm.chiefComplaint" />
@@ -590,9 +597,9 @@
               <div class="panel-head">
                 <h3>医嘱列表</h3>
                 <div class="button-row">
-                  <el-button type="primary" @click="openOrderDialog('create')">新增医嘱</el-button>
-                  <el-button :disabled="!selectedOrder" @click="openOrderDialog('edit')">编辑医嘱</el-button>
-                  <el-button :disabled="!selectedOrder" type="danger" plain @click="deleteOrderAction">删除医嘱</el-button>
+                  <el-button v-if="canAccessAdminTab('orders') && !isNurseOnly" type="primary" @click="openOrderDialog('create')">新增医嘱</el-button>
+                  <el-button v-if="canAccessAdminTab('orders') && !isNurseOnly" :disabled="!selectedOrder" @click="openOrderDialog('edit')">编辑医嘱</el-button>
+                  <el-button v-if="canAccessAdminTab('orders') && !isNurseOnly" :disabled="!selectedOrder" type="danger" plain @click="deleteOrderAction">删除医嘱</el-button>
                   <el-button @click="loadOrders">刷新</el-button>
                 </div>
               </div>
@@ -601,9 +608,10 @@
                 <el-table-column prop="status" label="状态" width="100" :formatter="statusFormatter" />
                 <el-table-column label="操作" width="170">
                   <template #default="{ row }">
-                    <el-button link type="primary" @click="auditOrderAction(row)">通过</el-button>
-                    <el-button link @click="executeOrderAction(row)">执行</el-button>
-                    <el-button link @click.stop="openOrderDialog('edit', row)">编辑</el-button>
+                    <el-button v-if="canAccessAdminTab('workflow-audits') && row.status === 'pending_audit'" link type="primary" @click="auditOrderAction(row)">通过</el-button>
+                    <el-button v-if="isNurseOnly && row.status === 'approved'" link type="success" @click="executeOrderAction(row)">执行</el-button>
+                    <span v-if="isNurseOnly && row.status === 'executed'" class="executed-tag">已执行</span>
+                    <el-button v-if="row.status === 'pending_audit' && !isNurseOnly" link @click.stop="openOrderDialog('edit', row)">编辑</el-button>
                   </template>
                 </el-table-column>
               </el-table>
@@ -665,8 +673,8 @@
                 <el-table-column prop="status" label="状态" width="100" :formatter="statusFormatter" />
                 <el-table-column label="操作" width="150">
                   <template #default="{ row }">
-                    <el-button link type="primary" @click.stop="openPrescriptionDialog('edit', row)">编辑</el-button>
-                    <el-button link type="danger" @click.stop="selectPrescription(row); deletePrescriptionAction()">删除</el-button>
+                    <el-button v-if="row.status === 'pending_audit'" link type="primary" @click.stop="openPrescriptionDialog('edit', row)">编辑</el-button>
+                    <el-button v-if="row.status === 'pending_audit'" link type="danger" @click.stop="selectPrescription(row); deletePrescriptionAction()">删除</el-button>
                   </template>
                 </el-table-column>
               </el-table>
@@ -731,8 +739,8 @@
                 <el-table-column prop="resultContent" label="结果" min-width="150" />
                 <el-table-column label="操作" width="100">
                   <template #default="{ row }">
-                    <el-button link type="primary" @click="auditTestAction(row)">审核</el-button>
-                    <el-button link @click.stop="openTestRequestDialog('edit', row)">编辑</el-button>
+                    <el-button v-if="canAccessAdminTab('workflow-audits') && row.status === 'pending_audit'" link type="primary" @click="auditTestAction(row)">审核</el-button>
+                    <el-button v-if="row.status === 'pending_audit'" link @click.stop="openTestRequestDialog('edit', row)">编辑</el-button>
                   </template>
                 </el-table-column>
               </el-table>
@@ -770,7 +778,7 @@
                 <el-form-item label="检查原因">
                   <el-input v-model="testRequestForm.testReason" />
                 </el-form-item>
-                <el-form-item label="检查结果">
+                <el-form-item v-if="testRequestDialogMode === 'edit' && (testRequestForm.status === 'paid' || testRequestForm.status === 'approved')" label="检查结果">
                   <el-input v-model="testRequestForm.resultContent" type="textarea" :rows="3" />
                 </el-form-item>
                 <div class="dialog-footer">
@@ -1329,6 +1337,7 @@ import { login, logout, validateToken } from './api/auth';
 import { fetchAppointments, fetchAppointmentDetail, cancelAppointment } from './api/appointment';
 import { createDepartment, fetchDepartments, updateDepartment, deleteDepartment } from './api/department';
 import { createManagedUser, fetchManagedUsers, updateManagedUser, deleteManagedUser } from './api/userManagement';
+import { fetchDoctors as fetchPublicDoctors } from './api/doctor';
 import { createTriageRecord, fetchTriageRecords, createAdmission, fetchAdmissions, dischargeAdmission, fetchDischarges } from './api/inpatient';
 import { createMedicalRecord, fetchMedicalRecords, fetchMedicalRecordDetail, updateMedicalRecord, deleteMedicalRecord, createMedicalRecordTemplate, fetchMedicalRecordTemplates, updateMedicalRecordTemplate, deleteMedicalRecordTemplate, createArchiveApplication, fetchArchiveApplications, auditArchiveApplication, fetchArchives } from './api/medicalRecord';
 import { createMedicalOrder, fetchMedicalOrders, updateMedicalOrder, deleteMedicalOrder, updateMedicalOrderAuditResult, executeMedicalOrder, createPrescription, fetchPrescriptions, updatePrescription, deletePrescription, createTestRequest, fetchTestRequests, updateTestAuditResult, updateTestRequest, deleteTestRequest } from './api/clinical';
@@ -1438,6 +1447,7 @@ const menuForm = ref(makeDefaultMenuForm());
 const menuSnapshot = ref(null);
 const aiForm = ref({ fileUrl: '/uploads/demo-record.png', diagnosis: '高血压', searchKeyword: '高血压', prescriptionText: '硝苯地平控释片 每日一次' });
 const navGroups = computed(() => getVisibleAdminNavGroups(adminSession.value.roleCode));
+const isNurseOnly = computed(() => adminSession.value.roleCode === 'nurse');
 const navItems = computed(() => getAccessibleAdminTabs(adminSession.value.roleCode));
 const patientOptions = computed(() => mergeRelationOptions([
   ...relationPatients.value,
@@ -1486,7 +1496,7 @@ function makeDefaultRecordForm() {
     patientName: '患者演示',
     doctorId: 1,
     doctorName: '王医生',
-    visitTime: '2026-06-22 10:00:00',
+    visitTime: nowDatetime(),
     chiefComplaint: '头晕一周',
     presentIllness: '近一周反复头晕，活动后明显。',
     pastHistory: '高血压病史三年。',
@@ -1521,7 +1531,7 @@ function makeDefaultPrescriptionForm() {
 }
 
 function makeDefaultTestRequestForm() {
-  return { recordId: 1, patientId: 1, patientName: '患者演示', doctorId: 1, doctorName: '王医生', testItem: '血常规', testReason: '评估基础指标', resultContent: '' };
+  return { recordId: 1, patientId: 1, patientName: '患者演示', doctorId: 1, doctorName: '王医生', testItem: '血常规', testReason: '评估基础指标', resultContent: '', status: 'pending_audit' };
 }
 
 function makeDefaultWorkflowForm() {
@@ -1609,6 +1619,12 @@ function createEmptyAdminSession() {
     username: '未登录管理员',
     roleCode: 'guest'
   };
+}
+
+function nowDatetime() {
+  const d = new Date();
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
 }
 
 function unwrap(response) {
@@ -1741,12 +1757,20 @@ function userNeedsDepartment() {
  * 如果当前角色没有目标页签权限，统一回到仪表盘，避免直接访问 URL 时继续停在无效功能页。
  */
 function resolveAdminTab(tabName) {
-  return navItems.value.some((item) => item.name === tabName) ? tabName : 'dashboard';
+  const items = navItems.value;
+  if (!items || items.length === 0) {
+    return 'dashboard';
+  }
+  return items.some((item) => item.name === tabName) ? tabName : 'dashboard';
 }
 
 function findAdminNavItem(tabName) {
+  const items = navItems.value;
+  if (!items || items.length === 0) {
+    return null;
+  }
   const safeTab = resolveAdminTab(tabName);
-  return navItems.value.find((item) => item.name === safeTab) || navItems.value[0];
+  return items.find((item) => item.name === safeTab) || items[0];
 }
 
 function goToAdminTab(tabName) {
@@ -2024,6 +2048,7 @@ function openRecordDialog(mode, row = null) {
     selectedRecord.value = null;
     selectedRecordDetail.value = null;
     recordForm.value = makeDefaultRecordForm();
+    syncDoctorFormToSession(recordForm.value);
   }
   adminDialogs.record = true;
 }
@@ -2150,6 +2175,7 @@ function openTestRequestDialog(mode, row = null) {
   } else {
     selectedTestRequest.value = null;
     testRequestForm.value = makeDefaultTestRequestForm();
+    syncDoctorFormToSession(testRequestForm.value);
   }
   adminDialogs.testRequest = true;
 }
@@ -2255,15 +2281,20 @@ async function loadUsers() {
  */
 async function loadRelationUsers() {
   try {
-    relationPatients.value = rowsOf(unwrap(await fetchManagedUsers('patients', { page: 1, limit: 100 })));
+    relationDoctors.value = rowsOf(unwrap(await fetchPublicDoctors({ page: 1, limit: 100 })));
   } catch (error) {
+    relationDoctors.value = [];
+  }
+
+  if (!canAccessAdminTab('managed-users')) {
     relationPatients.value = [];
+    return;
   }
 
   try {
-    relationDoctors.value = rowsOf(unwrap(await fetchManagedUsers('doctors', { page: 1, limit: 100 })));
+    relationPatients.value = rowsOf(unwrap(await fetchManagedUsers('patients', { page: 1, limit: 100 })));
   } catch (error) {
-    relationDoctors.value = [];
+    relationPatients.value = [];
   }
 }
 
@@ -2520,7 +2551,7 @@ function selectRecord(row) {
     patientName: row?.patientName || '',
     doctorId: row?.doctorId || 1,
     doctorName: row?.doctorName || '',
-    visitTime: row?.visitTime || '2026-06-22 10:00:00',
+    visitTime: row?.visitTime || nowDatetime(),
     chiefComplaint: row?.chiefComplaint || '',
     presentIllness: row?.presentIllness || '',
     pastHistory: row?.pastHistory || '',
@@ -2685,7 +2716,13 @@ async function auditOrderAction(row) {
 
 async function executeOrderAction(row) {
   try {
-    await executeMedicalOrder(row.id, { nurseId: 1, nurseName: '护士演示', executionResult: '已执行', remark: '按时完成' });
+    const nurseId = adminSession.value.userId || 1;
+    const nurseName = adminSession.value.username || '护士演示';
+    unwrap(await executeMedicalOrder(row.id, { nurseId, nurseName, executionResult: '已执行', remark: '按时完成' }));
+    const idx = orders.value.findIndex((o) => o.id === row.id);
+    if (idx >= 0) {
+      orders.value[idx] = { ...orders.value[idx], status: 'executed' };
+    }
     await loadOrders();
     ElMessage.success('医嘱已执行');
   } catch (error) {
@@ -2793,7 +2830,8 @@ function selectTestRequest(row) {
     doctorName: row?.doctorName || '',
     testItem: row?.testItem || '',
     testReason: row?.testReason || '',
-    resultContent: row?.resultContent || ''
+    resultContent: row?.resultContent || '',
+    status: row?.status || 'pending_audit'
   };
 }
 
@@ -3127,7 +3165,15 @@ function replaceRow(rows, row) {
   const index = rows.findIndex((item) => item.id === row.id);
   if (index >= 0) {
     rows[index] = row;
+  };
+}
+
+function syncDoctorFormToSession(form) {
+  if (!form || adminSession.value.roleCode !== 'doctor') {
+    return;
   }
+  form.doctorId = adminSession.value.userId || form.doctorId;
+  form.doctorName = adminSession.value.realName || adminSession.value.username || form.doctorName;
 }
 
 function getAdminTabLoader(tabName) {
@@ -3617,6 +3663,16 @@ h3 {
   color: #d1fae5;
   border-radius: 8px;
   white-space: pre-wrap;
+}
+
+.executed-tag {
+  display: inline-block;
+  padding: 2px 10px;
+  color: #16a34a;
+  background: #dcfce7;
+  border-radius: 4px;
+  font-size: 13px;
+  font-weight: 500;
 }
 
 :deep(.el-button--primary:not(.is-link)) {

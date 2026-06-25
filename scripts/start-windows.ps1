@@ -9,6 +9,8 @@ param(
 
 $ErrorActionPreference = "Stop"
 
+$env:JAVA_HOME = if ($env:JAVA_HOME -and (Test-Path "$env:JAVA_HOME\bin\java.exe")) { $env:JAVA_HOME } else { "D:\javawork" }
+
 $RootDir = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 $BackendDir = Join-Path $RootDir "backend"
 $FrontendDir = Join-Path $RootDir "frontend"
@@ -159,6 +161,9 @@ function Start-LoggedProcess {
     $pidFile = Join-Path $LogDir "$Name.pid"
     Remove-Item -Force -ErrorAction SilentlyContinue $stdout, $stderr, $pidFile
 
+    if ($env:JAVA_HOME) {
+        $EnvVars["JAVA_HOME"] = $env:JAVA_HOME
+    }
     $envCommand = New-EnvironmentCommand $EnvVars
     $fullCommand = if ($envCommand) { "$envCommand; $Command" } else { $Command }
 

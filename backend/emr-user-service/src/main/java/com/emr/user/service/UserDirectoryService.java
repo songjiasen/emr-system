@@ -18,6 +18,7 @@ import java.time.LocalDate;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.math.BigDecimal;
 
 /**
  * 用户目录服务。
@@ -190,6 +191,7 @@ public class UserDirectoryService {
         entity.setAddress(stringValue(payload.get("address")));
         entity.setEmergencyContact(stringValue(payload.get("emergencyContact")));
         entity.setEmergencyPhone(stringValue(payload.get("emergencyPhone")));
+        entity.setBalance(BigDecimal.valueOf(500.00));
         entity.setStatus(1);
         patientMapper.insert(entity);
         return toPatientRow(config.type(), entity);
@@ -433,6 +435,7 @@ public class UserDirectoryService {
         row.put("address", entity.getAddress());
         row.put("emergencyContact", entity.getEmergencyContact());
         row.put("emergencyPhone", entity.getEmergencyPhone());
+        row.put("balance", entity.getBalance());
         return row;
     }
 
@@ -543,5 +546,28 @@ public class UserDirectoryService {
     }
 
     private record UserTypeConfig(String type, String roleCode, StorageKind storageKind) {
+    }
+
+    /**
+     * 查询患者余额。
+     */
+    public BigDecimal getPatientBalance(Long patientId) {
+        PatientEntity entity = requirePatient(patientId);
+        return entity.getBalance() != null ? entity.getBalance() : BigDecimal.ZERO;
+    }
+
+    /**
+     * 扣减患者余额。
+     */
+    public BigDecimal deductPatientBalance(Long patientId, BigDecimal amount) {
+        PatientEntity entity = requirePatient(patientId);
+        BigDecimal currentBalance = entity.getBalance() != null ? entity.getBalance() : BigDecimal.ZERO;
+        if (currentBalance.compareTo(amount) < 0) {
+            throw new IllegalArgumentException("余额不足，当前余额 " + currentBalance + " 元");
+        }
+        BigDecimal newBalance = currentBalance.subtract(amount);
+        entity.setBalance(newBalance);
+        patientMapper.updateById(entity);
+        return newBalance;
     }
 }

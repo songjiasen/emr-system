@@ -14,6 +14,9 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.client.RestTemplate;
+
+import java.math.BigDecimal;
 
 import java.util.Map;
 
@@ -25,9 +28,11 @@ import java.util.Map;
 public class BillingController {
 
     private final BillingService billingService;
+    private final RestTemplate restTemplate;
 
-    public BillingController(BillingService billingService) {
+    public BillingController(BillingService billingService, RestTemplate restTemplate) {
         this.billingService = billingService;
+        this.restTemplate = restTemplate;
     }
 
     @PostMapping("/fees")
@@ -89,6 +94,25 @@ public class BillingController {
         TrustedUserContext context = TrustedUserContext.fromHeaders(userIdHeader, username, roleCode, tableName);
         Map<String, Object> current = billingService.getFee(id);
         ensureFeeAccess(context, current, "支付");
+        Object patientIdObj = current.get("patientId");
+        Long patientId = patientIdObj instanceof Number n ? n.longValue() : null;
+        if (patientId != null && context.isPatient()) {
+            Object amountObj = current.get("amount");
+            BigDecimal amount = amountObj instanceof BigDecimal bd ? bd : new BigDecimal(String.valueOf(amountObj));
+            try {
+                restTemplate.postForEntity(
+                        "http://127.0.0.1:8102/user-management/patients/" + patientId + "/deduct-balance",
+                        Map.of("amount", amount),
+                        String.class
+                );
+            } catch (Exception e) {
+                String msg = e.getMessage();
+                if (msg != null && msg.contains("余额不足")) {
+                    throw new IllegalArgumentException(msg);
+                }
+                throw new IllegalArgumentException("支付失败，请稍后重试");
+            }
+        }
         return ApiResponse.success(billingService.payFee(id));
     }
 

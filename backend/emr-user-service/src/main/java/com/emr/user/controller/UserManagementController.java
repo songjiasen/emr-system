@@ -14,6 +14,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.Map;
+import java.math.BigDecimal;
 
 /**
  * 用户管理接口。
@@ -59,6 +60,19 @@ public class UserManagementController {
     @DeleteMapping("/user-management/{type}/{id}")
     public ApiResponse<Map<String, Object>> deleteUser(@PathVariable("type") String type, @PathVariable("id") Long id) {
         return ApiResponse.success(userDirectoryService.deleteUser(type, id));
+    }
+
+    @GetMapping("/user-management/patients/{id}/balance")
+    public ApiResponse<BigDecimal> getPatientBalance(@PathVariable("id") Long id) {
+        return ApiResponse.success(userDirectoryService.getPatientBalance(id));
+    }
+
+    @PostMapping("/user-management/patients/{id}/deduct-balance")
+    public ApiResponse<BigDecimal> deductPatientBalance(@PathVariable("id") Long id, @RequestBody(required = false) Map<String, Object> request) {
+        BigDecimal amount = request == null || request.get("amount") == null
+                ? BigDecimal.ZERO
+                : new BigDecimal(request.get("amount").toString());
+        return ApiResponse.success(userDirectoryService.deductPatientBalance(id, amount));
     }
 
     @ExceptionHandler(IllegalArgumentException.class)

@@ -28,3 +28,7 @@ export function fetchTestRequests(params = {}) {
   return request.get('/test-requests', { params });
 }
 
+export function payTestRequest(id) {
+  return request.post(`/test-requests/${id}/pay`);
+}
+

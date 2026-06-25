@@ -324,6 +324,25 @@ public class ClinicalController {
         return ApiResponse.success(clinicalService.updateTestAuditResult(id, request));
     }
 
+    @PostMapping("/test-requests/{id}/pay")
+    public ApiResponse<Map<String, Object>> payTestRequest(
+            @PathVariable("id") Long id,
+            @RequestHeader(value = "X-User-Id", required = false) String userIdHeader,
+            @RequestHeader(value = "X-Username", required = false) String username,
+            @RequestHeader(value = "X-Role-Code", required = false) String roleCode,
+            @RequestHeader(value = "X-User-Table", required = false) String tableName
+    ) {
+        TrustedUserContext context = TrustedUserContext.fromHeaders(userIdHeader, username, roleCode, tableName);
+        if (!context.isPatient()) {
+            throw new IllegalArgumentException("仅患者可支付检查费用");
+        }
+        Map<String, Object> row = clinicalService.getTestRequest(id);
+        if (!(row.get("patientId") instanceof Number num) || !context.matchesUserId(num.longValue())) {
+            throw new IllegalArgumentException("当前登录患者无权支付该检查");
+        }
+        return ApiResponse.success(clinicalService.payTestRequest(id));
+    }
+
     @ExceptionHandler(IllegalArgumentException.class)
     public ApiResponse<Void> handleIllegalArgument(IllegalArgumentException exception) {
         return ApiResponse.fail(400, exception.getMessage());

@@ -258,7 +258,7 @@ public class DatabaseClinicalService implements ClinicalService {
         if (payload.containsKey("testReason")) entity.setTestReason(blankToNull(payload.get("testReason")));
         if (payload.containsKey("resultContent")) {
             entity.setResultContent(blankToNull(payload.get("resultContent")));
-            if ("approved".equals(entity.getStatus()) && blankToNull(payload.get("resultContent")) != null) {
+            if (("approved".equals(entity.getStatus()) || "paid".equals(entity.getStatus())) && blankToNull(payload.get("resultContent")) != null) {
                 entity.setStatus("finished");
             }
         }
@@ -285,6 +285,17 @@ public class DatabaseClinicalService implements ClinicalService {
         Map<String, Object> payload = safePayload(request);
         entity.setStatus(requireAuditResult(payload.get("auditResult")));
         entity.setAuditOpinion(blankToNull(payload.get("auditOpinion")));
+        testRequestMapper.updateById(entity);
+        return toTestRequestRow(entity);
+    }
+
+    @Override
+    public Map<String, Object> payTestRequest(Long id) {
+        TestRequestEntity entity = requireTestRequest(id);
+        if (!"approved".equals(entity.getStatus())) {
+            throw new IllegalArgumentException("当前检查申请不是已审核状态，无法支付");
+        }
+        entity.setStatus("paid");
         testRequestMapper.updateById(entity);
         return toTestRequestRow(entity);
     }
