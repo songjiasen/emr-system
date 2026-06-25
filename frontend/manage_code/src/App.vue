@@ -73,7 +73,7 @@
       </header>
 
       <el-tabs v-model="activeTab" class="workspace-tabs" @tab-change="goToAdminTab">
-        <el-tab-pane label="仪表盘" name="dashboard">
+        <el-tab-pane v-if="canAccessAdminTab('dashboard')" label="仪表盘" name="dashboard">
           <section class="dashboard-layout">
             <div class="overview-grid">
               <article class="overview-card">
@@ -136,16 +136,30 @@
           </section>
         </el-tab-pane>
 
-        <el-tab-pane label="预约管理" name="appointments">
+        <el-tab-pane v-if="canAccessAdminTab('appointments')" label="预约管理" name="appointments">
           <section class="two-column">
             <div class="panel">
               <h3>预约筛选</h3>
               <el-form label-position="top" :model="appointmentFilterForm">
-                <el-form-item label="患者 ID">
-                  <el-input-number v-model="appointmentFilterForm.patientId" :min="1" :controls="false" />
+                <el-form-item label="患者">
+                  <el-select v-model="appointmentFilterForm.patientId" clearable filterable placeholder="选择患者">
+                    <el-option
+                      v-for="item in patientOptions"
+                      :key="item.id"
+                      :label="relationLabel(item, 'patient')"
+                      :value="item.id"
+                    />
+                  </el-select>
                 </el-form-item>
-                <el-form-item label="医生 ID">
-                  <el-input-number v-model="appointmentFilterForm.doctorId" :min="1" :controls="false" />
+                <el-form-item label="医生">
+                  <el-select v-model="appointmentFilterForm.doctorId" clearable filterable placeholder="选择医生">
+                    <el-option
+                      v-for="item in doctorOptions"
+                      :key="item.id"
+                      :label="relationLabel(item, 'doctor')"
+                      :value="item.id"
+                    />
+                  </el-select>
                 </el-form-item>
                 <el-form-item label="状态">
                   <el-select v-model="appointmentFilterForm.status" clearable placeholder="全部状态">
@@ -199,7 +213,7 @@
           </section>
         </el-tab-pane>
 
-        <el-tab-pane label="科室管理" name="departments">
+        <el-tab-pane v-if="canAccessAdminTab('departments')" label="科室管理" name="departments">
           <section class="single-column">
             <div class="panel wide-panel">
               <div class="panel-head">
@@ -249,7 +263,7 @@
           </section>
         </el-tab-pane>
 
-        <el-tab-pane label="人员管理" name="managed-users">
+        <el-tab-pane v-if="canAccessAdminTab('managed-users')" label="人员管理" name="managed-users">
           <section class="single-column">
             <div class="panel wide-panel">
               <div class="panel-head">
@@ -323,7 +337,7 @@
           </section>
         </el-tab-pane>
 
-        <el-tab-pane label="病历列表" name="records">
+        <el-tab-pane v-if="canAccessAdminTab('records')" label="病历列表" name="records">
           <section class="single-column">
             <div class="panel wide-panel">
               <div class="panel-head">
@@ -363,11 +377,49 @@
 
             <el-dialog v-model="adminDialogs.record" :title="recordDialogMode === 'edit' ? '编辑病历' : '新增病历'" width="620px">
               <el-form class="dialog-form" label-position="top" :model="recordForm">
-                <el-form-item label="患者姓名">
-                  <el-input v-model="recordForm.patientName" />
-                </el-form-item>
-                <el-form-item label="医生姓名">
-                  <el-input v-model="recordForm.doctorName" />
+                <div class="record-relation-stack">
+                  <el-form-item label="预约">
+                    <el-select v-model="recordForm.appointmentId" clearable filterable placeholder="选择预约" @change="syncAppointmentToRecord">
+                      <el-option
+                        v-for="item in appointmentOptions"
+                        :key="item.id"
+                        :label="appointmentLabel(item)"
+                        :value="item.id"
+                      />
+                    </el-select>
+                  </el-form-item>
+                  <el-form-item v-if="recordForm.appointmentId" label="预约号">
+                    <el-input v-model="recordForm.appointmentNo" disabled />
+                  </el-form-item>
+                  <el-form-item v-if="!recordForm.appointmentId" label="患者">
+                    <el-select v-model="recordForm.patientId" filterable placeholder="选择患者" @change="(value) => syncPatientToForm(recordForm, value)">
+                      <el-option
+                        v-for="item in patientOptions"
+                        :key="item.id"
+                        :label="relationLabel(item, 'patient')"
+                        :value="item.id"
+                      />
+                    </el-select>
+                  </el-form-item>
+                  <el-form-item v-else label="患者">
+                    <el-input v-model="recordForm.patientName" disabled />
+                  </el-form-item>
+                  <el-form-item v-if="!recordForm.appointmentId" label="医生">
+                    <el-select v-model="recordForm.doctorId" filterable placeholder="选择医生" @change="(value) => syncDoctorToForm(recordForm, value)">
+                      <el-option
+                        v-for="item in doctorOptions"
+                        :key="item.id"
+                        :label="relationLabel(item, 'doctor')"
+                        :value="item.id"
+                      />
+                    </el-select>
+                  </el-form-item>
+                  <el-form-item v-else label="医生">
+                    <el-input v-model="recordForm.doctorName" disabled />
+                  </el-form-item>
+                </div>
+                <el-form-item label="就诊时间">
+                  <el-input v-model="recordForm.visitTime" placeholder="2026-06-22 10:00:00" />
                 </el-form-item>
                 <el-form-item label="主诉">
                   <el-input v-model="recordForm.chiefComplaint" />
@@ -391,13 +443,13 @@
           </section>
         </el-tab-pane>
 
-        <el-tab-pane label="分诊记录" name="triage">
+        <el-tab-pane v-if="canAccessAdminTab('triage')" label="分诊记录" name="triage">
           <section class="single-column">
             <div class="panel wide-panel">
               <div class="panel-head">
                 <h3>分诊记录</h3>
                 <div class="button-row">
-                  <el-button type="primary" @click="openInpatientDialog()">新增分诊</el-button>
+                  <el-button type="primary" @click="openTriageDialog()">新增分诊</el-button>
                   <el-button @click="loadTriageRecords">刷新</el-button>
                 </div>
               </div>
@@ -419,13 +471,13 @@
           </section>
         </el-tab-pane>
 
-        <el-tab-pane label="入院管理" name="admissions">
+        <el-tab-pane v-if="canAccessAdminTab('admissions')" label="入院管理" name="admissions">
           <section class="single-column">
             <div class="panel wide-panel">
               <div class="panel-head">
                 <h3>入院列表</h3>
                 <div class="button-row">
-                  <el-button type="primary" @click="openInpatientDialog()">登记入院</el-button>
+                  <el-button type="primary" @click="openAdmissionDialog()">登记入院</el-button>
                   <el-button @click="loadAdmissions">刷新</el-button>
                 </div>
               </div>
@@ -436,7 +488,7 @@
                 <el-table-column prop="status" label="状态" width="110" :formatter="statusFormatter" />
                 <el-table-column label="操作" width="100">
                   <template #default="{ row }">
-                    <el-button link type="primary" @click.stop="openInpatientDialog(row)">办理出院</el-button>
+                    <el-button link type="primary" @click.stop="openDischargeDialog(row)">办理出院</el-button>
                   </template>
                 </el-table-column>
               </el-table>
@@ -450,43 +502,10 @@
               />
             </div>
 
-            <el-dialog v-model="adminDialogs.inpatient" title="分诊入院" width="620px">
-              <el-form class="dialog-form" label-position="top" :model="triageForm">
-                <el-form-item label="患者姓名">
-                  <el-input v-model="triageForm.patientName" />
-                </el-form-item>
-                <el-form-item label="主诉">
-                  <el-input v-model="triageForm.chiefComplaint" />
-                </el-form-item>
-                <el-form-item label="分诊级别">
-                  <el-select v-model="triageForm.triageLevel">
-                    <el-option label="普通" value="normal" />
-                    <el-option label="急诊" value="urgent" />
-                  </el-select>
-                </el-form-item>
-                <div class="button-row">
-                  <el-button type="primary" @click="createTriageAction">创建分诊</el-button>
-                  <el-button @click="createAdmissionAction">登记入院</el-button>
-                </div>
-              </el-form>
-              <el-divider />
-              <el-form class="dialog-form" label-position="top" :model="admissionForm">
-                <el-form-item label="病区床位">
-                  <el-input v-model="admissionForm.bedNo" />
-                </el-form-item>
-                <el-form-item label="出院时间">
-                  <el-input v-model="dischargeForm.dischargeTime" />
-                </el-form-item>
-                <div class="dialog-footer">
-                  <el-button @click="adminDialogs.inpatient = false">关闭</el-button>
-                  <el-button type="primary" @click="dischargeAdmissionAction">办理出院</el-button>
-                </div>
-              </el-form>
-            </el-dialog>
           </section>
         </el-tab-pane>
 
-        <el-tab-pane label="出院记录" name="discharges">
+        <el-tab-pane v-if="canAccessAdminTab('discharges')" label="出院记录" name="discharges">
           <section class="single-column">
             <div class="panel wide-panel">
               <div class="panel-head">
@@ -511,7 +530,7 @@
           </section>
         </el-tab-pane>
 
-        <el-tab-pane label="病历模板" name="templates">
+        <el-tab-pane v-if="canAccessAdminTab('templates')" label="病历模板" name="templates">
           <section class="single-column">
             <div class="panel wide-panel">
               <div class="panel-head">
@@ -565,7 +584,7 @@
           </section>
         </el-tab-pane>
 
-        <el-tab-pane label="医嘱管理" name="orders">
+        <el-tab-pane v-if="canAccessAdminTab('orders')" label="医嘱管理" name="orders">
           <section class="single-column">
             <div class="panel wide-panel">
               <div class="panel-head">
@@ -600,11 +619,21 @@
 
             <el-dialog v-model="adminDialogs.order" :title="orderDialogMode === 'edit' ? '编辑医嘱' : '新增医嘱'" width="560px">
               <el-form class="dialog-form" label-position="top" :model="orderForm">
+                <el-form-item label="关联病历">
+                  <el-select v-model="orderForm.recordId" filterable placeholder="选择病历" @change="(value) => syncRecordToForm(orderForm, value)">
+                    <el-option
+                      v-for="item in recordOptions"
+                      :key="item.id"
+                      :label="recordLabel(item)"
+                      :value="item.id"
+                    />
+                  </el-select>
+                </el-form-item>
                 <el-form-item label="患者">
-                  <el-input v-model="orderForm.patientName" />
+                  <el-input v-model="orderForm.patientName" disabled />
                 </el-form-item>
                 <el-form-item label="医生">
-                  <el-input v-model="orderForm.doctorName" />
+                  <el-input v-model="orderForm.doctorName" disabled />
                 </el-form-item>
                 <el-form-item label="医嘱内容">
                   <el-input v-model="orderForm.content" type="textarea" :rows="3" />
@@ -619,7 +648,7 @@
           </section>
         </el-tab-pane>
 
-        <el-tab-pane label="处方管理" name="prescriptions">
+        <el-tab-pane v-if="canAccessAdminTab('prescriptions')" label="处方管理" name="prescriptions">
           <section class="single-column">
             <div class="panel wide-panel">
               <div class="panel-head">
@@ -653,6 +682,22 @@
 
             <el-dialog v-model="adminDialogs.prescription" :title="prescriptionDialogMode === 'edit' ? '编辑处方' : '新增处方'" width="520px">
               <el-form class="dialog-form" label-position="top" :model="prescriptionForm">
+                <el-form-item label="关联病历">
+                  <el-select v-model="prescriptionForm.recordId" filterable placeholder="选择病历" @change="(value) => syncRecordToForm(prescriptionForm, value)">
+                    <el-option
+                      v-for="item in recordOptions"
+                      :key="item.id"
+                      :label="recordLabel(item)"
+                      :value="item.id"
+                    />
+                  </el-select>
+                </el-form-item>
+                <el-form-item label="患者">
+                  <el-input v-model="prescriptionForm.patientName" disabled />
+                </el-form-item>
+                <el-form-item label="医生">
+                  <el-input v-model="prescriptionForm.doctorName" disabled />
+                </el-form-item>
                 <el-form-item label="药品名称">
                   <el-input v-model="prescriptionForm.medicineName" />
                 </el-form-item>
@@ -669,7 +714,7 @@
           </section>
         </el-tab-pane>
 
-        <el-tab-pane label="检查申请" name="tests">
+        <el-tab-pane v-if="canAccessAdminTab('tests')" label="检查申请" name="tests">
           <section class="single-column">
             <div class="panel wide-panel">
               <div class="panel-head">
@@ -703,6 +748,22 @@
 
             <el-dialog v-model="adminDialogs.testRequest" :title="testRequestDialogMode === 'edit' ? '编辑检查' : '新增检查'" width="560px">
               <el-form class="dialog-form" label-position="top" :model="testRequestForm">
+                <el-form-item label="关联病历">
+                  <el-select v-model="testRequestForm.recordId" filterable placeholder="选择病历" @change="(value) => syncRecordToForm(testRequestForm, value)">
+                    <el-option
+                      v-for="item in recordOptions"
+                      :key="item.id"
+                      :label="recordLabel(item)"
+                      :value="item.id"
+                    />
+                  </el-select>
+                </el-form-item>
+                <el-form-item label="患者">
+                  <el-input v-model="testRequestForm.patientName" disabled />
+                </el-form-item>
+                <el-form-item label="医生">
+                  <el-input v-model="testRequestForm.doctorName" disabled />
+                </el-form-item>
                 <el-form-item label="检查项目">
                   <el-input v-model="testRequestForm.testItem" />
                 </el-form-item>
@@ -722,13 +783,13 @@
           </section>
         </el-tab-pane>
 
-        <el-tab-pane label="审核任务" name="workflow-tasks">
+        <el-tab-pane v-if="canAccessAdminTab('workflow-tasks')" label="审核任务" name="workflow-tasks">
           <section class="single-column">
             <div class="panel">
               <div class="panel-head">
                 <h3>审核任务</h3>
                 <div class="button-row">
-                  <el-button type="primary" @click="adminDialogs.workflow = true">创建审核任务</el-button>
+                  <el-button type="primary" @click="openWorkflowDialog">创建审核任务</el-button>
                   <el-button @click="loadWorkflowTasks">刷新任务</el-button>
                 </div>
               </div>
@@ -755,15 +816,22 @@
             <el-dialog v-model="adminDialogs.workflow" title="创建审核任务" width="560px">
               <el-form class="dialog-form" label-position="top" :model="workflowForm">
                 <el-form-item label="业务类型">
-                  <el-select v-model="workflowForm.businessType">
+                  <el-select v-model="workflowForm.businessType" @change="resetWorkflowBusinessSelection">
                     <el-option label="病历审核" value="medical_record" />
                     <el-option label="医嘱审核" value="medical_order" />
                     <el-option label="检查审核" value="test_request" />
                     <el-option label="归档审核" value="record_archive" />
                   </el-select>
                 </el-form-item>
-                <el-form-item label="业务ID">
-                  <el-input-number v-model="workflowForm.businessId" :min="1" />
+                <el-form-item label="业务记录">
+                  <el-select v-model="workflowForm.businessId" filterable placeholder="选择业务记录" @change="syncWorkflowBusiness">
+                    <el-option
+                      v-for="item in workflowBusinessOptions"
+                      :key="item.id"
+                      :label="workflowBusinessLabel(item)"
+                      :value="item.id"
+                    />
+                  </el-select>
                 </el-form-item>
                 <el-form-item label="审核角色">
                   <el-input v-model="workflowForm.assigneeRole" />
@@ -777,7 +845,7 @@
           </section>
         </el-tab-pane>
 
-        <el-tab-pane label="审核记录" name="workflow-audits">
+        <el-tab-pane v-if="canAccessAdminTab('workflow-audits')" label="审核记录" name="workflow-audits">
           <section class="single-column">
             <div class="panel">
               <div class="panel-head">
@@ -802,7 +870,7 @@
           </section>
         </el-tab-pane>
 
-        <el-tab-pane label="归档申请" name="archive-applications">
+        <el-tab-pane v-if="canAccessAdminTab('archive-applications')" label="归档申请" name="archive-applications">
           <section class="single-column">
             <div class="panel">
               <div class="panel-head">
@@ -831,7 +899,7 @@
           </section>
         </el-tab-pane>
 
-        <el-tab-pane label="归档记录" name="archives">
+        <el-tab-pane v-if="canAccessAdminTab('archives')" label="归档记录" name="archives">
           <section class="single-column">
             <div class="panel">
               <div class="panel-head">
@@ -855,13 +923,13 @@
           </section>
         </el-tab-pane>
 
-        <el-tab-pane label="费用系统" name="billing">
+        <el-tab-pane v-if="canAccessAdminTab('billing')" label="费用系统" name="billing">
           <section class="single-column">
             <div class="panel">
               <div class="panel-head">
                 <h3>费用列表</h3>
                 <div class="button-row">
-                  <el-button type="primary" @click="adminDialogs.fee = true">新增费用</el-button>
+                  <el-button type="primary" @click="openFeeDialog">新增费用</el-button>
                   <el-button @click="loadFees">刷新</el-button>
                 </div>
               </div>
@@ -888,8 +956,18 @@
 
             <el-dialog v-model="adminDialogs.fee" title="新增费用" width="520px">
               <el-form class="dialog-form" label-position="top" :model="feeForm">
+                <el-form-item label="患者">
+                  <el-select v-model="feeForm.patientId" filterable placeholder="选择患者" @change="(value) => syncPatientToForm(feeForm, value)">
+                    <el-option
+                      v-for="item in patientOptions"
+                      :key="item.id"
+                      :label="relationLabel(item, 'patient')"
+                      :value="item.id"
+                    />
+                  </el-select>
+                </el-form-item>
                 <el-form-item label="患者姓名">
-                  <el-input v-model="feeForm.patientName" />
+                  <el-input v-model="feeForm.patientName" disabled />
                 </el-form-item>
                 <el-form-item label="费用类型">
                   <el-input v-model="feeForm.feeType" />
@@ -906,7 +984,7 @@
           </section>
         </el-tab-pane>
 
-        <el-tab-pane label="资讯管理" name="news">
+        <el-tab-pane v-if="canAccessAdminTab('news')" label="资讯管理" name="news">
           <section class="single-column">
             <div class="panel wide-panel">
               <div class="panel-head">
@@ -951,7 +1029,7 @@
           </section>
         </el-tab-pane>
 
-        <el-tab-pane label="轮播管理" name="carousels">
+        <el-tab-pane v-if="canAccessAdminTab('carousels')" label="轮播管理" name="carousels">
           <section class="single-column">
             <div class="panel wide-panel">
               <div class="panel-head">
@@ -1000,7 +1078,7 @@
           </section>
         </el-tab-pane>
 
-        <el-tab-pane label="留言管理" name="messages">
+        <el-tab-pane v-if="canAccessAdminTab('messages')" label="留言管理" name="messages">
           <section class="single-column">
             <div class="panel wide-panel">
               <div class="panel-head">
@@ -1028,7 +1106,7 @@
           </section>
         </el-tab-pane>
 
-        <el-tab-pane label="系统日志" name="syslogs">
+        <el-tab-pane v-if="canAccessAdminTab('syslogs')" label="系统日志" name="syslogs">
           <section class="single-column">
             <div class="panel wide-panel">
               <div class="panel-head">
@@ -1052,7 +1130,7 @@
           </section>
         </el-tab-pane>
 
-        <el-tab-pane label="系统配置" name="config">
+        <el-tab-pane v-if="canAccessAdminTab('config')" label="系统配置" name="config">
           <section class="single-column">
             <div class="panel">
               <div class="panel-head">
@@ -1073,7 +1151,7 @@
           </section>
         </el-tab-pane>
 
-        <el-tab-pane label="菜单管理" name="menus">
+        <el-tab-pane v-if="canAccessAdminTab('menus')" label="菜单管理" name="menus">
           <section class="single-column">
             <div class="panel wide-panel">
               <div class="panel-head">
@@ -1109,7 +1187,7 @@
           </section>
         </el-tab-pane>
 
-        <el-tab-pane label="AI 智能" name="ai">
+        <el-tab-pane v-if="canAccessAdminTab('ai')" label="AI 智能" name="ai">
           <section class="two-column">
             <div class="panel">
               <h3>AI 能力</h3>
@@ -1143,13 +1221,108 @@
         </el-tab-pane>
       </el-tabs>
 
+      <el-dialog v-model="adminDialogs.triage" title="新增分诊" width="560px">
+        <el-form class="dialog-form" label-position="top" :model="triageForm">
+          <el-form-item label="患者">
+            <el-select
+              v-model="triageForm.patientId"
+              filterable
+              placeholder="选择患者"
+              @change="(value) => syncPatientToForm(triageForm, value)"
+            >
+              <el-option
+                v-for="item in patientOptions"
+                :key="item.id"
+                :label="relationLabel(item, 'patient')"
+                :value="item.id"
+              />
+            </el-select>
+          </el-form-item>
+          <el-form-item label="主诉">
+            <el-input v-model="triageForm.chiefComplaint" />
+          </el-form-item>
+          <el-form-item label="分诊级别">
+            <el-select v-model="triageForm.triageLevel">
+              <el-option label="普通" value="normal" />
+              <el-option label="急诊" value="urgent" />
+            </el-select>
+          </el-form-item>
+          <div class="dialog-footer">
+            <el-button @click="adminDialogs.triage = false">取消</el-button>
+            <el-button type="primary" @click="createTriageAction">创建分诊</el-button>
+          </div>
+        </el-form>
+      </el-dialog>
+
+      <el-dialog v-model="adminDialogs.admission" title="登记入院" width="560px">
+        <el-form class="dialog-form" label-position="top" :model="admissionForm">
+          <el-form-item label="患者">
+            <el-select v-model="admissionForm.patientId" filterable placeholder="选择患者" @change="(value) => syncPatientToForm(admissionForm, value)">
+              <el-option
+                v-for="item in patientOptions"
+                :key="item.id"
+                :label="relationLabel(item, 'patient')"
+                :value="item.id"
+              />
+            </el-select>
+          </el-form-item>
+          <el-form-item label="主管医生">
+            <el-select v-model="admissionForm.doctorId" filterable placeholder="选择医生" @change="(value) => syncDoctorToForm(admissionForm, value)">
+              <el-option
+                v-for="item in doctorOptions"
+                :key="item.id"
+                :label="relationLabel(item, 'doctor')"
+                :value="item.id"
+              />
+            </el-select>
+          </el-form-item>
+          <el-form-item label="病区">
+            <el-input v-model="admissionForm.wardNo" />
+          </el-form-item>
+          <el-form-item label="病区床位">
+            <el-input v-model="admissionForm.bedNo" />
+          </el-form-item>
+          <el-form-item label="入院原因">
+            <el-input v-model="admissionForm.reason" />
+          </el-form-item>
+          <div class="dialog-footer">
+            <el-button @click="adminDialogs.admission = false">取消</el-button>
+            <el-button type="primary" @click="createAdmissionAction">登记入院</el-button>
+          </div>
+        </el-form>
+      </el-dialog>
+
+      <el-dialog v-model="adminDialogs.discharge" title="办理出院" width="560px">
+        <el-form class="dialog-form" label-position="top" :model="dischargeForm">
+          <el-form-item label="患者">
+            <el-input :model-value="selectedAdmission?.patientName || ''" disabled />
+          </el-form-item>
+          <el-form-item label="床位">
+            <el-input :model-value="selectedAdmission?.bedNo || ''" disabled />
+          </el-form-item>
+          <el-form-item label="出院时间">
+            <el-input v-model="dischargeForm.dischargeTime" />
+          </el-form-item>
+          <el-form-item label="出院原因">
+            <el-input v-model="dischargeForm.dischargeReason" />
+          </el-form-item>
+          <el-form-item label="出院小结">
+            <el-input v-model="dischargeForm.dischargeSummary" type="textarea" :rows="3" />
+          </el-form-item>
+          <div class="dialog-footer">
+            <el-button @click="adminDialogs.discharge = false">取消</el-button>
+            <el-button type="primary" @click="dischargeAdmissionAction">办理出院</el-button>
+          </div>
+        </el-form>
+      </el-dialog>
+
       <router-view />
     </section>
   </main>
 </template>
 
 <script setup>
-import { onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { ElMessage } from 'element-plus';
 import { login, logout, validateToken } from './api/auth';
@@ -1163,60 +1336,19 @@ import { createWorkflowTask, fetchWorkflowTasks, auditWorkflowTask, fetchAuditRe
 import { createFee, fetchFees, payFee } from './api/billing';
 import { createNews, fetchNews, fetchMessages, replyMessage, createCarousel, fetchCarousels, deleteCarousel, saveConfig, saveMenu, fetchMenu, fetchSyslogs } from './api/system';
 import { ocrMedicalRecord, recommendMedicine, auditPrescription, smartSearch } from './api/ai';
+import { getAccessibleAdminTabs, getVisibleAdminNavGroups, isAdminTabAccessible } from './adminMenu.mjs';
+import { buildRecordSubmitPayload } from './recordForm.mjs';
+import {
+  applyAppointmentToRecordForm,
+  applyDoctorToForm,
+  applyPatientToForm,
+  applyRecordToClinicalForm,
+  appointmentLabel,
+  mergeRelationOptions,
+  recordLabel,
+  relationLabel
+} from './relationSelect.mjs';
 import { AUTH_EVENT_NAME, clearAuthState, getStoredToken, readStoredSession, saveAuthState } from './utils/session';
-
-const navGroups = [
-  { name: 'dashboard', label: '仪表盘', path: '/dashboard' },
-  { name: 'appointments', label: '预约管理', path: '/appointments' },
-  {
-    label: '用户科室',
-    children: [
-      { name: 'departments', label: '科室管理', path: '/departments' },
-      { name: 'managed-users', label: '人员管理', path: '/managed-users' }
-    ]
-  },
-  {
-    label: '就诊病历',
-    children: [
-      { name: 'records', label: '病历列表', path: '/records' },
-      { name: 'triage', label: '分诊记录', path: '/triage' },
-      { name: 'admissions', label: '入院管理', path: '/admissions' },
-      { name: 'discharges', label: '出院记录', path: '/discharges' },
-      { name: 'templates', label: '病历模板', path: '/templates' }
-    ]
-  },
-  {
-    label: '诊疗管理',
-    children: [
-      { name: 'orders', label: '医嘱管理', path: '/orders' },
-      { name: 'prescriptions', label: '处方管理', path: '/prescriptions' },
-      { name: 'tests', label: '检查申请', path: '/tests' }
-    ]
-  },
-  {
-    label: '审核归档',
-    children: [
-      { name: 'workflow-tasks', label: '审核任务', path: '/workflow-tasks' },
-      { name: 'workflow-audits', label: '审核记录', path: '/workflow-audits' },
-      { name: 'archive-applications', label: '归档申请', path: '/archive-applications' },
-      { name: 'archives', label: '归档记录', path: '/archives' }
-    ]
-  },
-  { name: 'billing', label: '费用系统', path: '/billing' },
-  {
-    label: '系统内容',
-    children: [
-      { name: 'news', label: '资讯管理', path: '/news' },
-      { name: 'carousels', label: '轮播管理', path: '/carousels' },
-      { name: 'messages', label: '留言管理', path: '/messages' },
-      { name: 'syslogs', label: '系统日志', path: '/syslogs' },
-      { name: 'config', label: '系统配置', path: '/config' },
-      { name: 'menus', label: '菜单管理', path: '/menus' }
-    ]
-  },
-  { name: 'ai', label: 'AI 智能', path: '/ai' }
-];
-const navItems = navGroups.flatMap((group) => group.children || [group]);
 
 const route = useRoute();
 const router = useRouter();
@@ -1239,7 +1371,9 @@ const adminDialogs = reactive({
   department: false,
   user: false,
   record: false,
-  inpatient: false,
+  triage: false,
+  admission: false,
+  discharge: false,
   template: false,
   order: false,
   prescription: false,
@@ -1262,6 +1396,8 @@ const testRequestDialogMode = ref('create');
 const appointments = ref([]);
 const departments = ref([]);
 const users = ref([]);
+const relationPatients = ref([]);
+const relationDoctors = ref([]);
 const records = ref([]);
 const triageRecords = ref([]);
 const admissions = ref([]);
@@ -1301,6 +1437,38 @@ const configForm = ref(makeDefaultConfigForm());
 const menuForm = ref(makeDefaultMenuForm());
 const menuSnapshot = ref(null);
 const aiForm = ref({ fileUrl: '/uploads/demo-record.png', diagnosis: '高血压', searchKeyword: '高血压', prescriptionText: '硝苯地平控释片 每日一次' });
+const navGroups = computed(() => getVisibleAdminNavGroups(adminSession.value.roleCode));
+const navItems = computed(() => getAccessibleAdminTabs(adminSession.value.roleCode));
+const patientOptions = computed(() => mergeRelationOptions([
+  ...relationPatients.value,
+  ...(userType.value === 'patients' ? users.value : []),
+  ...appointments.value,
+  ...records.value,
+  ...triageRecords.value,
+  ...admissions.value,
+  ...fees.value
+], 'patient'));
+const doctorOptions = computed(() => mergeRelationOptions([
+  ...relationDoctors.value,
+  ...(userType.value === 'doctors' ? users.value : []),
+  ...appointments.value,
+  ...records.value,
+  ...admissions.value
+], 'doctor'));
+const appointmentOptions = computed(() => mergeRelationOptions(appointments.value, 'appointment'));
+const recordOptions = computed(() => mergeRelationOptions(records.value, 'record'));
+const workflowBusinessOptions = computed(() => {
+  if (workflowForm.value.businessType === 'medical_order') {
+    return orders.value.map((row) => ({ id: row.id, name: row.content || `医嘱 ${row.id}`, raw: row }));
+  }
+  if (workflowForm.value.businessType === 'test_request') {
+    return testRequests.value.map((row) => ({ id: row.id, name: row.testItem || `检查 ${row.id}`, raw: row }));
+  }
+  if (workflowForm.value.businessType === 'record_archive') {
+    return archiveApplications.value.map((row) => ({ id: row.id, name: row.recordNo || `归档申请 ${row.id}`, raw: row }));
+  }
+  return recordOptions.value;
+});
 
 function makeDefaultDepartmentForm() {
   return { name: '全科医学科', sortNo: 3 };
@@ -1318,7 +1486,7 @@ function makeDefaultRecordForm() {
     patientName: '患者演示',
     doctorId: 1,
     doctorName: '王医生',
-    visitTime: '2026-06-22 10:00',
+    visitTime: '2026-06-22 10:00:00',
     chiefComplaint: '头晕一周',
     presentIllness: '近一周反复头晕，活动后明显。',
     pastHistory: '高血压病史三年。',
@@ -1349,11 +1517,11 @@ function makeDefaultOrderForm() {
 }
 
 function makeDefaultPrescriptionForm() {
-  return { patientId: 1, patientName: '患者演示', doctorId: 1, doctorName: '王医生', medicineName: '硝苯地平控释片', quantity: 7, usageText: '每日一次' };
+  return { recordId: 1, patientId: 1, patientName: '患者演示', doctorId: 1, doctorName: '王医生', medicineName: '硝苯地平控释片', quantity: 7, usageText: '每日一次' };
 }
 
 function makeDefaultTestRequestForm() {
-  return { patientId: 1, patientName: '患者演示', doctorId: 1, doctorName: '王医生', testItem: '血常规', testReason: '评估基础指标', resultContent: '' };
+  return { recordId: 1, patientId: 1, patientName: '患者演示', doctorId: 1, doctorName: '王医生', testItem: '血常规', testReason: '评估基础指标', resultContent: '' };
 }
 
 function makeDefaultWorkflowForm() {
@@ -1378,6 +1546,57 @@ function makeDefaultConfigForm() {
 
 function makeDefaultMenuForm() {
   return { roleCode: 'admin', name: '管理员菜单', menujson: '[{"name":"仪表盘","path":"/dashboard"},{"name":"系统管理","path":"/system"}]' };
+}
+
+function findRelationOption(options, id) {
+  return options.find((item) => item.id === id) || null;
+}
+
+function syncPatientToForm(form, patientId) {
+  const option = findRelationOption(patientOptions.value, patientId);
+  if (option) {
+    applyPatientToForm(form, option);
+  }
+}
+
+function syncDoctorToForm(form, doctorId) {
+  const option = findRelationOption(doctorOptions.value, doctorId);
+  if (option) {
+    applyDoctorToForm(form, option);
+  }
+}
+
+function syncAppointmentToRecord(appointmentId) {
+  const option = findRelationOption(appointmentOptions.value, appointmentId);
+  applyAppointmentToRecordForm(recordForm.value, option);
+}
+
+function syncRecordToForm(form, recordId) {
+  const option = findRelationOption(recordOptions.value, recordId);
+  if (option) {
+    applyRecordToClinicalForm(form, option);
+  }
+}
+
+function syncWorkflowBusiness(businessId) {
+  const option = findRelationOption(workflowBusinessOptions.value, businessId);
+  const raw = option?.raw || {};
+  workflowForm.value.businessId = businessId || null;
+  workflowForm.value.businessNo = raw.recordNo || raw.orderNo || raw.testNo || raw.applicationNo || raw.businessNo || String(businessId || '');
+}
+
+function resetWorkflowBusinessSelection() {
+  workflowForm.value.businessId = null;
+  workflowForm.value.businessNo = '';
+}
+
+function workflowBusinessLabel(option) {
+  if (workflowForm.value.businessType === 'medical_record') {
+    return recordLabel(option);
+  }
+  const raw = option?.raw || {};
+  const owner = raw.patientName ? ` / ${raw.patientName}` : '';
+  return `${option?.name || raw.businessNo || `业务 ${option?.id}`}${owner}`;
 }
 
 /**
@@ -1505,17 +1724,29 @@ function isNurseRole() {
   return adminSession.value.roleCode === 'nurse';
 }
 
+/**
+ * 判断当前后台账号是否能进入指定页签。
+ * 所有菜单、页签和路由兜底都走这里，保证展示入口和网关权限口径一致。
+ */
+function canAccessAdminTab(tabName) {
+  return isAdminTabAccessible(adminSession.value.roleCode, tabName);
+}
+
 function userNeedsDepartment() {
   return userType.value === 'doctors' || userType.value === 'nurses';
 }
 
+/**
+ * 解析后台页签。
+ * 如果当前角色没有目标页签权限，统一回到仪表盘，避免直接访问 URL 时继续停在无效功能页。
+ */
 function resolveAdminTab(tabName) {
-  return navItems.some((item) => item.name === tabName) ? tabName : 'dashboard';
+  return navItems.value.some((item) => item.name === tabName) ? tabName : 'dashboard';
 }
 
 function findAdminNavItem(tabName) {
   const safeTab = resolveAdminTab(tabName);
-  return navItems.find((item) => item.name === safeTab) || navItems[0];
+  return navItems.value.find((item) => item.name === safeTab) || navItems.value[0];
 }
 
 function goToAdminTab(tabName) {
@@ -1776,6 +2007,10 @@ function openUserDialog(mode, row = null) {
 }
 
 function openRecordDialog(mode, row = null) {
+  loadRelationUsers();
+  if (canAccessAdminTab('appointments')) {
+    loadAppointments();
+  }
   recordDialogMode.value = mode;
   if (mode === 'edit') {
     if (row) {
@@ -1793,26 +2028,28 @@ function openRecordDialog(mode, row = null) {
   adminDialogs.record = true;
 }
 
-function openInpatientDialog(row = null) {
-  selectedAdmission.value = row;
-  if (row) {
-    admissionForm.value = {
-      patientId: row.patientId || 1,
-      patientName: row.patientName || '患者演示',
-      doctorId: row.doctorId || 1,
-      doctorName: row.doctorName || '王医生',
-      nurseId: row.nurseId || 1,
-      nurseName: row.nurseName || '护士演示',
-      wardNo: row.wardNo || 'A1',
-      bedNo: row.bedNo || '',
-      admissionTime: row.admissionTime || '2026-06-22 14:00',
-      reason: row.reason || '观察治疗'
-    };
-  } else {
-    admissionForm.value = makeDefaultAdmissionForm();
-    triageForm.value = makeDefaultTriageForm();
+function openTriageDialog() {
+  loadRelationUsers();
+  selectedAdmission.value = null;
+  triageForm.value = makeDefaultTriageForm();
+  adminDialogs.triage = true;
+}
+
+function openAdmissionDialog() {
+  loadRelationUsers();
+  selectedAdmission.value = null;
+  admissionForm.value = makeDefaultAdmissionForm();
+  adminDialogs.admission = true;
+}
+
+function openDischargeDialog(row) {
+  if (!row?.id) {
+    ElMessage.warning('请先选择一条入院记录');
+    return;
   }
-  adminDialogs.inpatient = true;
+  selectedAdmission.value = row;
+  dischargeForm.value = makeDefaultDischargeForm();
+  adminDialogs.discharge = true;
 }
 
 /**
@@ -1843,7 +2080,7 @@ function openTriageFromAppointment(row) {
     nurseId: adminSession.value.userId || 1,
     nurseName: adminSession.value.username || '护士演示'
   };
-  adminDialogs.inpatient = true;
+  adminDialogs.triage = true;
 }
 
 function openTemplateDialog(mode, row = null) {
@@ -1864,6 +2101,7 @@ function openTemplateDialog(mode, row = null) {
 }
 
 function openOrderDialog(mode, row = null) {
+  loadRecords();
   orderDialogMode.value = mode;
   if (mode === 'edit') {
     if (row) {
@@ -1881,6 +2119,7 @@ function openOrderDialog(mode, row = null) {
 }
 
 function openPrescriptionDialog(mode, row = null) {
+  loadRecords();
   prescriptionDialogMode.value = mode;
   if (mode === 'edit') {
     if (row) {
@@ -1898,6 +2137,7 @@ function openPrescriptionDialog(mode, row = null) {
 }
 
 function openTestRequestDialog(mode, row = null) {
+  loadRecords();
   testRequestDialogMode.value = mode;
   if (mode === 'edit') {
     if (row) {
@@ -1912,6 +2152,16 @@ function openTestRequestDialog(mode, row = null) {
     testRequestForm.value = makeDefaultTestRequestForm();
   }
   adminDialogs.testRequest = true;
+}
+
+function openWorkflowDialog() {
+  loadWorkflowTaskContext();
+  adminDialogs.workflow = true;
+}
+
+function openFeeDialog() {
+  loadRelationUsers();
+  adminDialogs.fee = true;
 }
 
 async function createDepartmentAction() {
@@ -2000,6 +2250,24 @@ async function loadUsers() {
 }
 
 /**
+ * 静默加载患者和医生候选。
+ * 这些数据只用于下拉辅助选择；角色无权限时不打断当前页面，继续使用业务列表中已出现的候选。
+ */
+async function loadRelationUsers() {
+  try {
+    relationPatients.value = rowsOf(unwrap(await fetchManagedUsers('patients', { page: 1, limit: 100 })));
+  } catch (error) {
+    relationPatients.value = [];
+  }
+
+  try {
+    relationDoctors.value = rowsOf(unwrap(await fetchManagedUsers('doctors', { page: 1, limit: 100 })));
+  } catch (error) {
+    relationDoctors.value = [];
+  }
+}
+
+/**
  * 切换用户类型时回到第一页。
  * 不同角色的数据量差异较大，保留旧页码容易落到空页，所以这里统一重置再查询。
  */
@@ -2065,7 +2333,9 @@ async function deleteUserAction() {
 
 async function createRecordAction() {
   try {
-    const data = unwrap(await createMedicalRecord(recordForm.value));
+    const payload = buildRecordSubmitPayload(recordForm.value);
+    const data = unwrap(await createMedicalRecord(payload));
+    recordForm.value.visitTime = payload.visitTime;
     await loadRecords();
     selectedRecord.value = data;
     orderForm.value.recordId = data.id;
@@ -2094,7 +2364,7 @@ async function createTriageAction() {
     await createTriageRecord(triageForm.value);
     await loadTriageRecords();
     await loadAppointments();
-    adminDialogs.inpatient = false;
+    adminDialogs.triage = false;
     ElMessage.success('分诊记录已创建');
   } catch (error) {
     showError(error);
@@ -2116,7 +2386,7 @@ async function createAdmissionAction() {
   try {
     await createAdmission(admissionForm.value);
     await loadAdmissions();
-    adminDialogs.inpatient = false;
+    adminDialogs.admission = false;
     ElMessage.success('入院登记已创建');
   } catch (error) {
     showError(error);
@@ -2157,7 +2427,7 @@ async function dischargeAdmissionAction() {
     await loadAdmissions();
     loadDischarges();
     selectedAdmission.value = null;
-    adminDialogs.inpatient = false;
+    adminDialogs.discharge = false;
     ElMessage.success('出院办理完成');
   } catch (error) {
     showError(error);
@@ -2250,7 +2520,7 @@ function selectRecord(row) {
     patientName: row?.patientName || '',
     doctorId: row?.doctorId || 1,
     doctorName: row?.doctorName || '',
-    visitTime: row?.visitTime || '2026-06-22 10:00',
+    visitTime: row?.visitTime || '2026-06-22 10:00:00',
     chiefComplaint: row?.chiefComplaint || '',
     presentIllness: row?.presentIllness || '',
     pastHistory: row?.pastHistory || '',
@@ -2281,7 +2551,9 @@ async function updateRecordAction() {
   }
 
   try {
-    const data = unwrap(await updateMedicalRecord(selectedRecord.value.id, recordForm.value));
+    const payload = buildRecordSubmitPayload(recordForm.value);
+    const data = unwrap(await updateMedicalRecord(selectedRecord.value.id, payload));
+    recordForm.value.visitTime = payload.visitTime;
     await loadRecords();
     selectedRecord.value = data;
     await loadRecordDetail(data.id);
@@ -2446,6 +2718,7 @@ async function loadPrescriptions() {
 function selectPrescription(row) {
   selectedPrescription.value = row;
   prescriptionForm.value = {
+    recordId: row?.recordId || 1,
     patientId: row?.patientId || 1,
     patientName: row?.patientName || '',
     doctorId: row?.doctorId || 1,
@@ -2513,6 +2786,7 @@ async function loadTestRequests() {
 function selectTestRequest(row) {
   selectedTestRequest.value = row;
   testRequestForm.value = {
+    recordId: row?.recordId || 1,
     patientId: row?.patientId || 1,
     patientName: row?.patientName || '',
     doctorId: row?.doctorId || 1,
@@ -2856,32 +3130,111 @@ function replaceRow(rows, row) {
   }
 }
 
+function getAdminTabLoader(tabName) {
+  const loaders = {
+    appointments: loadAppointmentContext,
+    departments: loadDepartments,
+    'managed-users': loadUsers,
+    records: loadRecordContext,
+    triage: loadTriageContext,
+    admissions: loadAdmissionContext,
+    discharges: loadDischarges,
+    templates: loadTemplates,
+    orders: loadOrderContext,
+    prescriptions: loadPrescriptionContext,
+    tests: loadTestRequestContext,
+    'workflow-tasks': loadWorkflowTaskContext,
+    'workflow-audits': loadWorkflowAuditRecords,
+    'archive-applications': loadArchiveApplications,
+    archives: loadArchives,
+    billing: loadBillingContext,
+    news: loadNews,
+    messages: loadMessages,
+    carousels: loadCarousels,
+    menus: () => loadMenuAction({ silent: true }),
+    syslogs: loadSyslogs
+  };
+  return loaders[tabName];
+}
+
+function loadAppointmentContext() {
+  loadRelationUsers();
+  loadAppointments();
+}
+
+function loadRecordContext() {
+  loadRelationUsers();
+  loadRecords();
+  if (canAccessAdminTab('appointments')) {
+    loadAppointments();
+  }
+}
+
+function loadTriageContext() {
+  loadRelationUsers();
+  loadTriageRecords();
+}
+
+function loadAdmissionContext() {
+  loadRelationUsers();
+  loadAdmissions();
+}
+
+function loadOrderContext() {
+  loadRelationUsers();
+  loadOrders();
+  loadRecords();
+}
+
+function loadPrescriptionContext() {
+  loadRelationUsers();
+  loadPrescriptions();
+  loadRecords();
+}
+
+function loadTestRequestContext() {
+  loadRelationUsers();
+  loadTestRequests();
+  loadRecords();
+}
+
+function loadWorkflowTaskContext() {
+  loadRelationUsers();
+  loadWorkflowTasks();
+  loadRecords();
+  loadOrders();
+  loadTestRequests();
+  loadArchiveApplications();
+}
+
+function loadBillingContext() {
+  loadRelationUsers();
+  loadFees();
+}
+
+/**
+ * 按当前角色权限批量加载后台数据。
+ * 菜单被隐藏的模块不会再预加载，避免登录后无意义地触发网关 403。
+ */
+function loadAllowedAdminTabs(tabNames) {
+  tabNames.forEach((tabName) => {
+    if (!canAccessAdminTab(tabName)) {
+      return;
+    }
+
+    const loader = getAdminTabLoader(tabName);
+    if (typeof loader === 'function') {
+      loader();
+    }
+  });
+}
+
 /**
  * 统一加载后台工作台数据。
- * 登录成功或刷新后 Token 校验通过时批量拉取，避免未登录状态下无意义地触发一串 401。
+ * 登录成功或刷新后 Token 校验通过时只拉取当前角色有权限的模块，避免角色菜单隐藏后仍请求无权限接口。
  */
 function loadAdminWorkspaceData() {
-  loadAppointments();
-  loadDepartments();
-  loadUsers();
-  loadRecords();
-  loadTriageRecords();
-  loadAdmissions();
-  loadDischarges();
-  loadTemplates();
-  loadOrders();
-  loadPrescriptions();
-  loadTestRequests();
-  loadWorkflowTasks();
-  loadWorkflowAuditRecords();
-  loadArchiveApplications();
-  loadArchives();
-  loadFees();
-  loadNews();
-  loadMessages();
-  loadCarousels();
-  loadMenuAction({ silent: true });
-  loadSyslogs();
+  loadAllowedAdminTabs(navItems.value.map((item) => item.name).filter((name) => name !== 'dashboard' && name !== 'ai'));
 }
 
 /**
@@ -2895,125 +3248,23 @@ function loadAdminRouteData(tabName) {
 
   const tab = resolveAdminTab(tabName);
   if (tab === 'dashboard') {
-    loadAppointments();
-    loadDepartments();
-    loadUsers();
-    loadRecords();
-    loadWorkflowTasks();
-    loadArchiveApplications();
-    loadFees();
+    loadAllowedAdminTabs(['appointments', 'departments', 'managed-users', 'records', 'workflow-tasks', 'archive-applications', 'billing', 'triage', 'admissions', 'orders', 'prescriptions', 'tests']);
     return;
   }
 
-  if (tab === 'appointments') {
-    loadAppointments();
-    return;
-  }
-
-  if (tab === 'departments') {
-    loadDepartments();
-    return;
-  }
-
-  if (tab === 'managed-users') {
-    loadUsers();
-    return;
-  }
-
-  if (tab === 'records') {
-    loadRecords();
-    return;
-  }
-
-  if (tab === 'triage') {
-    loadTriageRecords();
-    return;
-  }
-
-  if (tab === 'admissions') {
-    loadAdmissions();
-    return;
-  }
-
-  if (tab === 'discharges') {
-    loadDischarges();
-    return;
-  }
-
-  if (tab === 'templates') {
-    loadTemplates();
-    return;
-  }
-
-  if (tab === 'orders') {
-    loadOrders();
-    return;
-  }
-
-  if (tab === 'prescriptions') {
-    loadPrescriptions();
-    return;
-  }
-
-  if (tab === 'tests') {
-    loadTestRequests();
-    return;
-  }
-
-  if (tab === 'workflow-tasks') {
-    loadWorkflowTasks();
-    return;
-  }
-
-  if (tab === 'workflow-audits') {
-    loadWorkflowAuditRecords();
-    return;
-  }
-
-  if (tab === 'archive-applications') {
-    loadArchiveApplications();
-    return;
-  }
-
-  if (tab === 'archives') {
-    loadArchives();
-    return;
-  }
-
-  if (tab === 'billing') {
-    loadFees();
-    return;
-  }
-
-  if (tab === 'news') {
-    loadNews();
-    return;
-  }
-
-  if (tab === 'messages') {
-    loadMessages();
-    return;
-  }
-
-  if (tab === 'carousels') {
-    loadCarousels();
-    return;
-  }
-
-  if (tab === 'menus') {
-    loadMenuAction({ silent: true });
-    return;
-  }
-
-  if (tab === 'syslogs') {
-    loadSyslogs();
-  }
+  loadAllowedAdminTabs([tab]);
 }
 
 function syncAdminRouteState(routeName) {
   const nextTab = resolveAdminTab(routeName);
   if (activeTab.value !== nextTab) {
     activeTab.value = nextTab;
+  }
+  if (routeName && routeName !== nextTab) {
+    const item = findAdminNavItem(nextTab);
+    if (item && route.name !== item.name) {
+      void router.replace({ name: item.name }).catch(() => {});
+    }
   }
   if (adminSessionReady.value) {
     loadAdminRouteData(nextTab);
@@ -3337,6 +3588,18 @@ h3 {
   padding-top: 4px;
 }
 
+.dialog-form :deep(.el-select),
+.dialog-form :deep(.el-input-number),
+.panel :deep(.el-select),
+.panel :deep(.el-input-number) {
+  width: 100%;
+}
+
+.record-relation-stack {
+  display: grid;
+  grid-template-columns: 1fr;
+}
+
 .dialog-footer {
   display: flex;
   justify-content: flex-end;
@@ -3531,5 +3794,6 @@ h3 {
   .overview-grid {
     grid-template-columns: 1fr;
   }
+
 }
 </style>

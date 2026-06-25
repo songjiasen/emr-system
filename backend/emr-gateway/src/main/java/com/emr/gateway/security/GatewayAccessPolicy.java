@@ -103,12 +103,14 @@ public class GatewayAccessPolicy {
 
     private boolean isDirectorAllowed(HttpMethod method, String path) {
         if (pathStartsWith(path, "/workflow")
-                || pathStartsWith(path, "/medical-records")
                 || pathStartsWith(path, "/medical-record-archives")) {
             return true;
         }
+        if (pathStartsWith(path, "/medical-records")) {
+            return HttpMethod.GET.equals(method);
+        }
         if (pathStartsWith(path, "/medical-orders") || pathStartsWith(path, "/test-requests")) {
-            return HttpMethod.GET.equals(method) || (HttpMethod.POST.equals(method) && path.endsWith("/audit"));
+            return HttpMethod.GET.equals(method) || (HttpMethod.POST.equals(method) && path.endsWith("/audit-result"));
         }
         return pathStartsWith(path, "/prescriptions") && HttpMethod.GET.equals(method);
     }

@@ -113,6 +113,19 @@ Windows 上还需要确认 `mvn -version` 输出里的 `Java version` 是 `17` �
 - 后台端：`http://localhost:5174`
 - 网关：`http://localhost:8080`
 
+## 默认演示账号
+
+以下账号为空库启动时由认证服务自动补齐的演示账号；如果数据库里已经存在同名账号，启动时不会覆盖原有密码和资料。
+
+| 入口 | 角色 | roleCode | 账号 | 密码 |
+| --- | --- | --- | --- | --- |
+| 后台端 | 超级管理员 | `super_admin` | `super_admin` | `admin123` |
+| 后台端 | 管理员 | `admin` | `admin` | `admin123` |
+| 后台端 | 医生 | `doctor` | `doctor` | `123456` |
+| 后台端 | 护士 | `nurse` | `nurse` | `123456` |
+| 后台端 | 主任 | `director` | `director` | `123456` |
+| 患者端 | 患者 | `patient` | `patient_demo` | `123456` |
+
 停止 Docker 微服务栈：
 
 ```bash

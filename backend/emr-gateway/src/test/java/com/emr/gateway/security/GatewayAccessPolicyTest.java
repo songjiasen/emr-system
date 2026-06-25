@@ -37,8 +37,14 @@ class GatewayAccessPolicyTest {
         assertThat(policy.isAllowed("nurse", HttpMethod.POST, "/cl584734139/triage-records")).isTrue();
         assertThat(policy.isAllowed("nurse", HttpMethod.POST, "/cl584734139/medical-orders/1/execute")).isTrue();
         assertThat(policy.isAllowed("nurse", HttpMethod.POST, "/cl584734139/medical-orders/1/audit")).isFalse();
-        assertThat(policy.isAllowed("director", HttpMethod.POST, "/cl584734139/medical-orders/1/audit")).isTrue();
-        assertThat(policy.isAllowed("director", HttpMethod.POST, "/cl584734139/medical-record-archives/1/audit")).isTrue();
+        assertThat(policy.isAllowed("director", HttpMethod.GET, "/cl584734139/medical-records")).isTrue();
+        assertThat(policy.isAllowed("director", HttpMethod.POST, "/cl584734139/medical-records")).isFalse();
+        assertThat(policy.isAllowed("director", HttpMethod.PUT, "/cl584734139/medical-records/1")).isFalse();
+        assertThat(policy.isAllowed("director", HttpMethod.DELETE, "/cl584734139/medical-records/1")).isFalse();
+        assertThat(policy.isAllowed("director", HttpMethod.POST, "/cl584734139/medical-orders/1/audit")).isFalse();
+        assertThat(policy.isAllowed("director", HttpMethod.POST, "/cl584734139/medical-orders/1/audit-result")).isTrue();
+        assertThat(policy.isAllowed("director", HttpMethod.POST, "/cl584734139/test-requests/1/audit-result")).isTrue();
+        assertThat(policy.isAllowed("director", HttpMethod.POST, "/cl584734139/medical-record-archives/applications/1/audit")).isTrue();
         assertThat(policy.isAllowed("director", HttpMethod.POST, "/cl584734139/user-management/admins")).isFalse();
     }
 
