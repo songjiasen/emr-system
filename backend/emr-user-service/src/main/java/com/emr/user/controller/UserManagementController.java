@@ -75,6 +75,14 @@ public class UserManagementController {
         return ApiResponse.success(userDirectoryService.deductPatientBalance(id, amount));
     }
 
+    @PostMapping("/user-management/patients/{id}/recharge")
+    public ApiResponse<BigDecimal> rechargePatientBalance(@PathVariable("id") Long id, @RequestBody(required = false) Map<String, Object> request) {
+        BigDecimal amount = request == null || request.get("amount") == null
+                ? BigDecimal.ZERO
+                : new BigDecimal(request.get("amount").toString());
+        return ApiResponse.success(userDirectoryService.rechargePatientBalance(id, amount));
+    }
+
     @ExceptionHandler(IllegalArgumentException.class)
     public ApiResponse<Void> handleIllegalArgument(IllegalArgumentException exception) {
         return ApiResponse.fail(400, exception.getMessage());

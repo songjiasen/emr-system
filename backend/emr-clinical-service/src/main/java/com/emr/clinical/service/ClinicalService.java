@@ -21,6 +21,7 @@ public interface ClinicalService {
     PageResult<Map<String, Object>> listPrescriptions(Long patientId, Long doctorId, String status, Long recordId, int page, int limit);
     Map<String, Object> getPrescription(Long id);
     Map<String, Object> updatePrescription(Long id, Map<String, Object> request);
+    Map<String, Object> updatePrescriptionAuditResult(Long id, Map<String, Object> request);
     Map<String, Object> deletePrescription(Long id);
     Map<String, Object> createTestRequest(Map<String, Object> request);
     PageResult<Map<String, Object>> listTestRequests(Long patientId, Long doctorId, String status, Long recordId, int page, int limit);
@@ -29,4 +30,10 @@ public interface ClinicalService {
     Map<String, Object> deleteTestRequest(Long id);
     Map<String, Object> updateTestAuditResult(Long id, Map<String, Object> request);
     Map<String, Object> payTestRequest(Long id);
+    Map<String, Object> payPrescription(Long id);
+    java.util.List<Map<String, Object>> listMedicines();
+    java.util.List<Map<String, Object>> listTestItems();
+    Map<String, Object> createTestItem(Map<String, Object> request);
+    Map<String, Object> updateTestItem(Long id, Map<String, Object> request);
+    Map<String, Object> deleteTestItem(Long id);
 }

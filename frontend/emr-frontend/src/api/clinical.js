@@ -32,3 +32,7 @@ export function payTestRequest(id) {
   return request.post(`/test-requests/${id}/pay`);
 }
 
+export function payPrescription(id) {
+  return request.post(`/prescriptions/${id}/pay`);
+}
+

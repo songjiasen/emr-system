@@ -13,7 +13,9 @@ public record DoctorSummaryResponse(
         Long departmentId,
         String departmentName,
         String specialty,
-        String profile
+        String profile,
+        String avatar,
+        Boolean isFeatured
 ) {
 }
 

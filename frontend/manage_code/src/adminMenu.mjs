@@ -53,7 +53,7 @@ export const ADMIN_NAV_GROUPS = [
 ];
 
 const ROLE_TAB_ACCESS = {
-  doctor: new Set(['dashboard', 'appointments', 'records', 'templates', 'orders', 'prescriptions', 'tests', 'ai']),
+  doctor: new Set(['dashboard', 'appointments', 'records', 'templates', 'orders', 'prescriptions', 'tests', 'archive-applications', 'ai']),
   nurse: new Set(['dashboard', 'records', 'triage', 'admissions', 'discharges', 'orders', 'ai']),
   director: new Set(['dashboard', 'records', 'orders', 'prescriptions', 'tests', 'workflow-tasks', 'workflow-audits', 'archive-applications', 'archives', 'ai'])
 };

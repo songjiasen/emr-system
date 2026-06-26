@@ -25,6 +25,7 @@ public class DoctorEntity {
     private String specialty;
     private String profile;
     private String avatar;
+    private Boolean isFeatured;
     private Integer status;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
@@ -109,17 +110,11 @@ public class DoctorEntity {
         this.profile = profile;
     }
 
-    public String getAvatar() {
-        return avatar;
-    }
-
-    public void setAvatar(String avatar) {
-        this.avatar = avatar;
-    }
-
-    public Integer getStatus() {
-        return status;
-    }
+    public String getAvatar() { return avatar; }
+    public void setAvatar(String avatar) { this.avatar = avatar; }
+    public Boolean getIsFeatured() { return isFeatured; }
+    public void setIsFeatured(Boolean isFeatured) { this.isFeatured = isFeatured; }
+    public Integer getStatus() { return status; }
 
     public void setStatus(Integer status) {
         this.status = status;

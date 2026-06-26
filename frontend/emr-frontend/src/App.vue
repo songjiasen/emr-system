@@ -1,5 +1,5 @@
 <template>
-  <main v-if="!hasPatientToken" class="auth-page patient-auth-page">
+  <div v-if="!hasPatientToken" class="auth-page patient-auth-page">
     <section class="auth-card">
       <div class="auth-brand">
         <span class="brand-icon">✚</span>
@@ -47,546 +47,97 @@
         </el-tab-pane>
       </el-tabs>
     </section>
-  </main>
+  </div>
 
-  <main v-else class="patient-workspace">
-    <header class="topbar">
+  <div v-else class="app-layout">
+    <header class="app-header">
       <div class="brand">
         <span class="brand-icon">✚</span>
         <strong>安心医疗</strong>
       </div>
-      <nav class="patient-nav" aria-label="患者端功能导航">
-        <template v-for="group in patientNavGroups" :key="group.label">
-          <button
-            v-if="!group.children"
-            :class="{ active: activeTab === group.name }"
-            type="button"
-            @click="goToPatientTab(group.name)"
-          >
-            {{ group.label }}
-          </button>
-          <el-dropdown v-else trigger="click" @command="goToPatientTab">
-            <button
-              class="nav-parent"
-              :class="{ active: isPatientGroupActive(group) }"
-              type="button"
-            >
-              {{ group.label }}
-            </button>
-            <template #dropdown>
-              <el-dropdown-menu>
-                <el-dropdown-item
-                  v-for="child in group.children"
-                  :key="child.name"
-                  :command="child.name"
-                >
-                  {{ child.label }}
-                </el-dropdown-item>
-              </el-dropdown-menu>
-            </template>
-          </el-dropdown>
-        </template>
+      <nav class="nav-links">
+        <router-link to="/home" active-class="active">首页</router-link>
+        <router-link to="/doctors" active-class="active">医生团队</router-link>
+        <router-link to="/appointment" active-class="active">预约挂号</router-link>
+        <router-link to="/news" active-class="active">健康资讯</router-link>
+        <router-link to="/messages" active-class="active">留言咨询</router-link>
       </nav>
-      <div class="session">
-        <span class="avatar">{{ patientAvatarText }}</span>
-        <span>{{ session.name }}</span>
-        <el-tag type="success">{{ session.roleCode }}</el-tag>
-        <el-button v-if="hasPatientToken" link type="primary" @click="logoutPatientAction">退出</el-button>
+      <div class="user-area">
+        <span class="balance">余额 ¥{{ patientBalance }}</span>
+        <el-dropdown trigger="click">
+          <span class="avatar-btn">{{ avatarText }}</span>
+          <template #dropdown>
+            <el-dropdown-menu>
+              <el-dropdown-item @click="$router.push('/profile')">个人中心</el-dropdown-item>
+              <el-dropdown-item divided @click="logoutPatientAction">退出登录</el-dropdown-item>
+            </el-dropdown-menu>
+          </template>
+        </el-dropdown>
       </div>
     </header>
-
-    <section class="page-hero">
-      <h1>{{ patientPageTitle }}</h1>
-      <p>{{ patientPageSubtitle }}</p>
-    </section>
-
-    <el-tabs v-model="activeTab" class="workspace-tabs" @tab-change="goToPatientTab">
-      <el-tab-pane label="首页" name="home">
-        <section class="single-column">
-          <div class="panel">
-            <div class="panel-head">
-              <h2>首页轮播</h2>
-              <el-button @click="loadCarousels">刷新</el-button>
-            </div>
-            <el-table :data="carousels" height="360">
-              <el-table-column prop="title" label="轮播标题" min-width="180" />
-              <el-table-column prop="imageUrl" label="图片地址" min-width="220" />
-              <el-table-column prop="linkUrl" label="跳转地址" min-width="180" />
-            </el-table>
-            <el-pagination
-              background
-              layout="prev, pager, next"
-              :page-size="pagers.carousels.limit"
-              :current-page="pagers.carousels.page"
-              :total="pagers.carousels.total"
-              @current-change="(page) => changePage('carousels', page, loadCarousels)"
-            />
-          </div>
-        </section>
-      </el-tab-pane>
-
-      <el-tab-pane label="医生介绍" name="doctors">
-        <section class="single-column">
-          <div class="panel">
-            <div class="panel-head">
-              <h2>医生介绍</h2>
-              <el-button @click="loadDoctors">刷新</el-button>
-            </div>
-            <el-table :data="doctors" height="360">
-              <el-table-column prop="name" label="医生" min-width="110" />
-              <el-table-column prop="departmentName" label="科室" min-width="110" />
-              <el-table-column prop="specialty" label="擅长" min-width="150" />
-            </el-table>
-            <el-pagination
-              background
-              layout="prev, pager, next"
-              :page-size="pagers.doctors.limit"
-              :current-page="pagers.doctors.page"
-              :total="pagers.doctors.total"
-              @current-change="(page) => changePage('doctors', page, loadDoctors)"
-            />
-          </div>
-        </section>
-      </el-tab-pane>
-
-      <el-tab-pane label="预约挂号" name="appointment">
-        <section class="single-column">
-          <div class="panel">
-            <div class="panel-head">
-              <h2>我的预约</h2>
-              <div class="button-row">
-                <el-button type="primary" @click="patientDialogs.appointment = true">新增预约</el-button>
-                <el-button @click="loadAppointments">刷新列表</el-button>
-              </div>
-            </div>
-            <el-table :data="appointments" height="360">
-              <el-table-column prop="appointmentNo" label="预约号" min-width="130" />
-              <el-table-column prop="doctorName" label="医生" min-width="90" />
-              <el-table-column prop="appointmentTime" label="时间" min-width="150" />
-              <el-table-column prop="status" label="状态" width="100" :formatter="statusFormatter" />
-              <el-table-column label="操作" width="100">
-                <template #default="{ row }">
-                  <el-button link type="danger" @click="cancelAppointmentAction(row)">取消</el-button>
-                </template>
-              </el-table-column>
-            </el-table>
-            <el-pagination
-              background
-              layout="prev, pager, next"
-              :page-size="pagers.appointments.limit"
-              :current-page="pagers.appointments.page"
-              :total="pagers.appointments.total"
-              @current-change="(page) => changePage('appointments', page, loadAppointments)"
-            />
-          </div>
-
-          <el-dialog v-model="patientDialogs.appointment" title="新增预约" width="520px">
-            <el-form class="dialog-form" label-position="top" :model="appointmentForm">
-              <el-form-item label="医生">
-                <el-select v-model="appointmentForm.doctorId" @change="syncDoctor">
-                  <el-option
-                    v-for="doctor in doctors"
-                    :key="doctor.id"
-                    :label="doctorOptionLabel(doctor)"
-                    :value="doctor.id"
-                  />
-                </el-select>
-              </el-form-item>
-              <el-form-item label="预约时间">
-                <el-date-picker
-                  v-model="appointmentForm.appointmentTime"
-                  type="datetime"
-                  format="YYYY-MM-DD HH:mm:ss"
-                  value-format="YYYY-MM-DD HH:mm:ss"
-                  placeholder="请选择预约时间"
-                  style="width:100%"
-                />
-              </el-form-item>
-              <el-form-item label="备注">
-                <el-input v-model="appointmentForm.remark" type="textarea" :rows="3" />
-              </el-form-item>
-              <div class="dialog-footer">
-                <el-button @click="patientDialogs.appointment = false">取消</el-button>
-                <el-button type="primary" @click="submitAppointment">提交预约</el-button>
-              </div>
-            </el-form>
-          </el-dialog>
-        </section>
-      </el-tab-pane>
-
-      <el-tab-pane label="就诊记录" name="record">
-        <section class="single-column">
-          <div class="panel">
-            <div class="panel-head">
-              <h2>病历记录</h2>
-              <el-button @click="loadRecords">刷新</el-button>
-            </div>
-            <el-table :data="records" height="220" @row-click="selectRecordDetail">
-              <el-table-column prop="recordNo" label="病历号" min-width="130" />
-              <el-table-column prop="doctorName" label="医生" min-width="90" />
-              <el-table-column prop="diagnosis" label="诊断" min-width="140" />
-              <el-table-column prop="archiveStatus" label="归档状态" width="120" :formatter="statusFormatter" />
-            </el-table>
-            <el-pagination
-              background
-              layout="prev, pager, next"
-              :page-size="pagers.records.limit"
-              :current-page="pagers.records.page"
-              :total="pagers.records.total"
-              @current-change="(page) => changePage('records', page, loadRecords)"
-            />
-            <el-descriptions v-if="selectedRecordDetail" :column="1" border class="detail-box">
-              <el-descriptions-item label="主诉">{{ selectedRecordDetail.chiefComplaint || '-' }}</el-descriptions-item>
-              <el-descriptions-item label="现病史">{{ selectedRecordDetail.presentIllness || '-' }}</el-descriptions-item>
-              <el-descriptions-item label="治疗建议">{{ selectedRecordDetail.treatmentAdvice || '-' }}</el-descriptions-item>
-              <el-descriptions-item label="附件">
-                <a v-if="selectedRecordDetail.fileUrl" :href="selectedRecordDetail.fileUrl" target="_blank" rel="noreferrer">查看附件</a>
-                <span v-else>-</span>
-              </el-descriptions-item>
-            </el-descriptions>
-          </div>
-        </section>
-      </el-tab-pane>
-
-      <el-tab-pane label="费用支付" name="fees">
-        <section class="single-column">
-          <div class="panel">
-            <div class="panel-head">
-              <h2>费用支付</h2>
-              <div>
-                <span class="balance-badge">余额：¥{{ patientBalance }}</span>
-                <el-button @click="loadFees">刷新</el-button>
-              </div>
-            </div>
-            <el-table :data="fees" height="360">
-              <el-table-column prop="feeNo" label="费用号" min-width="130" />
-              <el-table-column prop="patientName" label="患者" min-width="90" />
-              <el-table-column prop="amount" label="金额" width="100" />
-              <el-table-column prop="status" label="状态" width="100" :formatter="statusFormatter" />
-              <el-table-column label="操作" width="100">
-                <template #default="{ row }">
-                  <el-button v-if="row.status === 'unpaid'" link type="primary" @click="payFeeAction(row)">支付</el-button>
-                  <span v-else-if="row.status === 'paid'" class="paid-tag">已支付</span>
-                </template>
-              </el-table-column>
-            </el-table>
-            <el-pagination
-              background
-              layout="prev, pager, next"
-              :page-size="pagers.fees.limit"
-              :current-page="pagers.fees.page"
-              :total="pagers.fees.total"
-              @current-change="(page) => changePage('fees', page, loadFees)"
-            />
-          </div>
-        </section>
-      </el-tab-pane>
-
-      <el-tab-pane label="处方记录" name="prescriptions">
-        <section class="single-column">
-          <div class="panel">
-            <div class="panel-head">
-              <h2>处方记录</h2>
-              <el-button @click="loadPrescriptions">刷新</el-button>
-            </div>
-            <el-table :data="prescriptions" height="360">
-              <el-table-column prop="medicineName" label="药品" min-width="140" />
-              <el-table-column prop="quantity" label="数量" width="100" />
-              <el-table-column prop="doctorName" label="医生" width="100" />
-              <el-table-column prop="status" label="状态" width="100" :formatter="statusFormatter" />
-            </el-table>
-            <el-pagination
-              background
-              layout="prev, pager, next"
-              :page-size="pagers.prescriptions.limit"
-              :current-page="pagers.prescriptions.page"
-              :total="pagers.prescriptions.total"
-              @current-change="(page) => changePage('prescriptions', page, loadPrescriptions)"
-            />
-          </div>
-        </section>
-      </el-tab-pane>
-
-      <el-tab-pane label="检查申请" name="tests">
-        <section class="single-column">
-          <div class="panel">
-            <div class="panel-head">
-              <h2>检查申请</h2>
-              <el-button @click="loadTestRequests">刷新</el-button>
-            </div>
-            <el-table :data="testRequests" height="360">
-              <el-table-column prop="testItem" label="项目" min-width="140" />
-              <el-table-column prop="doctorName" label="医生" width="100" />
-              <el-table-column prop="status" label="状态" width="100" :formatter="statusFormatter" />
-              <el-table-column prop="auditOpinion" label="审核意见" min-width="140" />
-              <el-table-column prop="resultContent" label="检查结果" min-width="160" />
-              <el-table-column label="操作" width="100">
-                <template #default="{ row }">
-                  <el-button v-if="row.status === 'approved'" link type="primary" @click="goToCheckAction(row)">去检查</el-button>
-                  <span v-else-if="row.status === 'paid'" class="paid-tag">已支付</span>
-                  <span v-else-if="row.status === 'finished'" class="paid-tag">已完成</span>
-                </template>
-              </el-table-column>
-            </el-table>
-            <el-pagination
-              background
-              layout="prev, pager, next"
-              :page-size="pagers.testRequests.limit"
-              :current-page="pagers.testRequests.page"
-              :total="pagers.testRequests.total"
-              @current-change="(page) => changePage('testRequests', page, loadTestRequests)"
-            />
-          </div>
-        </section>
-      </el-tab-pane>
-
-      <el-tab-pane label="健康资讯" name="news">
-        <section class="single-column">
-          <div class="panel">
-            <div class="panel-head">
-              <h2>健康资讯</h2>
-              <el-button @click="loadNews">刷新</el-button>
-            </div>
-            <el-table :data="newsList" height="220" @row-click="selectNews">
-              <el-table-column prop="title" label="标题" min-width="180" />
-              <el-table-column prop="category" label="分类" width="110" />
-              <el-table-column prop="publishStatus" label="状态" width="100" :formatter="statusFormatter" />
-            </el-table>
-            <el-pagination
-              background
-              layout="prev, pager, next"
-              :page-size="pagers.news.limit"
-              :current-page="pagers.news.page"
-              :total="pagers.news.total"
-              @current-change="(page) => changePage('news', page, loadNews)"
-            />
-            <el-descriptions v-if="selectedNews" :column="1" border class="detail-box">
-              <el-descriptions-item label="标题">{{ selectedNews.title }}</el-descriptions-item>
-              <el-descriptions-item label="摘要">{{ selectedNews.summary || '-' }}</el-descriptions-item>
-              <el-descriptions-item label="内容">{{ selectedNews.content || '-' }}</el-descriptions-item>
-            </el-descriptions>
-          </div>
-        </section>
-      </el-tab-pane>
-
-      <el-tab-pane label="留言咨询" name="messages">
-        <section class="single-column">
-          <div class="panel">
-            <div class="panel-head">
-              <h2>留言咨询</h2>
-              <div class="button-row">
-                <el-button type="primary" @click="patientDialogs.message = true">新增留言</el-button>
-                <el-button @click="loadMessages">刷新回复</el-button>
-              </div>
-            </div>
-            <el-table :data="messages" height="190">
-              <el-table-column prop="title" label="标题" min-width="130" />
-              <el-table-column prop="replyContent" label="回复" min-width="150" />
-              <el-table-column prop="status" label="状态" width="90" :formatter="statusFormatter" />
-            </el-table>
-            <el-pagination
-              background
-              layout="prev, pager, next"
-              :page-size="pagers.messages.limit"
-              :current-page="pagers.messages.page"
-              :total="pagers.messages.total"
-              @current-change="(page) => changePage('messages', page, loadMessages)"
-            />
-          </div>
-
-          <el-dialog v-model="patientDialogs.message" title="新增留言" width="520px">
-            <el-form class="dialog-form" label-position="top" :model="messageForm">
-              <el-form-item label="标题">
-                <el-input v-model="messageForm.title" />
-              </el-form-item>
-              <el-form-item label="内容">
-                <el-input v-model="messageForm.content" type="textarea" :rows="4" />
-              </el-form-item>
-              <div class="dialog-footer">
-                <el-button @click="patientDialogs.message = false">取消</el-button>
-                <el-button type="primary" @click="submitMessage">提交留言</el-button>
-              </div>
-            </el-form>
-          </el-dialog>
-        </section>
-      </el-tab-pane>
-
-      <el-tab-pane label="个人中心" name="profile">
-        <section class="single-column">
-          <div class="panel">
-            <div class="panel-head">
-              <h2>当前会话</h2>
-              <div class="button-row">
-                <el-button type="primary" @click="patientDialogs.password = true">修改密码</el-button>
-                <el-button @click="logoutPatientAction">退出登录</el-button>
-              </div>
-            </div>
-            <el-descriptions :column="1" border>
-              <el-descriptions-item label="用户ID">{{ session.userId || '-' }}</el-descriptions-item>
-              <el-descriptions-item label="账号">{{ session.username }}</el-descriptions-item>
-              <el-descriptions-item label="姓名">{{ session.name }}</el-descriptions-item>
-              <el-descriptions-item label="角色">{{ session.roleCode }}</el-descriptions-item>
-            </el-descriptions>
-          </div>
-
-          <el-dialog v-model="patientDialogs.password" title="修改密码" width="480px">
-            <el-form class="dialog-form" label-position="top" :model="passwordForm">
-              <el-form-item label="旧密码">
-                <el-input v-model="passwordForm.oldPassword" type="password" show-password />
-              </el-form-item>
-              <el-form-item label="新密码">
-                <el-input v-model="passwordForm.newPassword" type="password" show-password />
-              </el-form-item>
-              <div class="dialog-footer">
-                <el-button @click="patientDialogs.password = false">取消</el-button>
-                <el-button type="primary" @click="submitPasswordChange">保存新密码</el-button>
-              </div>
-            </el-form>
-          </el-dialog>
-        </section>
-      </el-tab-pane>
-
-      <el-tab-pane label="智能检索" name="ai">
-        <section class="two-column">
-          <div class="panel">
-            <h2>智能检索</h2>
-            <el-form label-position="top" :model="aiForm">
-              <el-form-item label="关键词">
-                <el-input v-model="aiForm.keyword" />
-              </el-form-item>
-              <el-form-item label="诊断">
-                <el-input v-model="aiForm.diagnosis" />
-              </el-form-item>
-              <div class="button-row">
-                <el-button type="primary" @click="runAiSearch">检索</el-button>
-                <el-button @click="runMedicineRecommend">荐药</el-button>
-              </div>
-            </el-form>
-          </div>
-
-          <div class="panel">
-            <h2>智能结果</h2>
-            <pre class="result-box">{{ aiResult }}</pre>
-          </div>
-        </section>
-      </el-tab-pane>
-    </el-tabs>
-
-    <router-view />
-  </main>
+    <div class="app-body">
+      <aside class="sidebar" :class="{ collapsed: sidebarCollapsed }">
+        <div class="sidebar-toggle" @click="sidebarCollapsed = !sidebarCollapsed">
+          <span v-if="!sidebarCollapsed">◀ 收起</span>
+          <span v-else>▶</span>
+        </div>
+        <el-menu
+          :default-active="$route.path"
+          :collapse="sidebarCollapsed"
+          router
+          background-color="transparent"
+          text-color="#53656a"
+          active-text-color="#3f8067"
+        >
+          <el-menu-item index="/appointment">
+            <el-icon><svg viewBox="0 0 24 24" width="18" height="18"><rect x="3" y="6" width="18" height="15" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><line x1="3" y1="10" x2="21" y2="10" stroke="currentColor" stroke-width="2"/><line x1="8" y1="3" x2="8" y2="7" stroke="currentColor" stroke-width="2"/><line x1="16" y1="3" x2="16" y2="7" stroke="currentColor" stroke-width="2"/></svg></el-icon>
+            <span>我的预约</span>
+          </el-menu-item>
+          <el-menu-item index="/records">
+            <el-icon><svg viewBox="0 0 24 24" width="18" height="18"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" fill="none" stroke="currentColor" stroke-width="2"/><polyline points="14 2 14 8 20 8" fill="none" stroke="currentColor" stroke-width="2"/></svg></el-icon>
+            <span>我的病历</span>
+          </el-menu-item>
+          <el-menu-item index="/fees">
+            <el-icon><svg viewBox="0 0 24 24" width="18" height="18"><rect x="2" y="4" width="20" height="16" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><line x1="12" y1="8" x2="12" y2="16" stroke="currentColor" stroke-width="2"/><line x1="8" y1="12" x2="16" y2="12" stroke="currentColor" stroke-width="2"/></svg></el-icon>
+            <span>我的缴费</span>
+          </el-menu-item>
+          <el-menu-item index="/prescriptions">
+            <el-icon><svg viewBox="0 0 24 24" width="18" height="18"><rect x="3" y="5" width="18" height="14" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><line x1="8" y1="3" x2="8" y2="7" stroke="currentColor" stroke-width="2"/><line x1="16" y1="3" x2="16" y2="7" stroke="currentColor" stroke-width="2"/><line x1="7" y1="11" x2="17" y2="11" stroke="currentColor" stroke-width="2"/><line x1="7" y1="14" x2="14" y2="14" stroke="currentColor" stroke-width="2"/></svg></el-icon>
+            <span>我的处方</span>
+          </el-menu-item>
+          <el-menu-item index="/tests">
+            <el-icon><svg viewBox="0 0 24 24" width="18" height="18"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="2"/><line x1="12" y1="7" x2="12" y2="12" stroke="currentColor" stroke-width="2"/><line x1="12" y1="12" x2="15" y2="14" stroke="currentColor" stroke-width="2"/></svg></el-icon>
+            <span>我的检查</span>
+          </el-menu-item>
+        </el-menu>
+      </aside>
+      <main class="app-main" :class="{ expanded: sidebarCollapsed }">
+        <router-view />
+      </main>
+    </div>
+  </div>
 </template>
 
 <script setup>
-import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
-import { useRoute, useRouter } from 'vue-router';
+import { computed, onBeforeUnmount, onMounted, provide, reactive, ref } from 'vue';
 import { ElMessage } from 'element-plus';
-import { changePassword, login, logout, registerPatient, validateToken } from './api/auth';
-import { fetchDoctors } from './api/doctor';
-import { createAppointment, fetchAppointments, cancelAppointment } from './api/appointment';
-import { fetchMedicalRecords, fetchMedicalRecordDetail } from './api/medicalRecord';
-import { fetchFees, payFee, createFee } from './api/billing';
-import { fetchPrescriptions, fetchTestRequests, payTestRequest } from './api/clinical';
-import { createMessage, fetchCarousels, fetchMessages, fetchNews } from './api/system';
-import { recommendMedicine, smartSearch } from './api/ai';
+import { login, logout, registerPatient, validateToken, changePassword } from './api/auth';
+import { unwrap, showError } from './utils/common';
 import request from './utils/request';
 import { AUTH_EVENT_NAME, clearAuthState, getStoredToken, readStoredSession, saveAuthState } from './utils/session';
 
-const route = useRoute();
-const router = useRouter();
-const activeTab = ref('home');
 const patientAuthMode = ref('login');
 const session = ref(createEmptyPatientSession());
+const sidebarCollapsed = ref(false);
 const hasPatientToken = ref(Boolean(getStoredToken()));
-const patientSessionReady = ref(!hasPatientToken.value);
-const doctors = ref([]);
-const appointments = ref([]);
-const records = ref([]);
-const selectedRecordDetail = ref(null);
-const fees = ref([]);
 const patientBalance = ref('0.00');
-const prescriptions = ref([]);
-const testRequests = ref([]);
-const newsList = ref([]);
-const carousels = ref([]);
-const selectedNews = ref(null);
-const messages = ref([]);
-const aiResult = ref('等待检索');
-const passwordForm = ref({ oldPassword: '123456', newPassword: '12345678' });
-const pagers = reactive({
-  doctors: { page: 1, limit: 10, total: 0 },
-  appointments: { page: 1, limit: 10, total: 0 },
-  records: { page: 1, limit: 10, total: 0 },
-  fees: { page: 1, limit: 10, total: 0 },
-  prescriptions: { page: 1, limit: 10, total: 0 },
-  testRequests: { page: 1, limit: 10, total: 0 },
-  news: { page: 1, limit: 10, total: 0 },
-  carousels: { page: 1, limit: 10, total: 0 },
-  messages: { page: 1, limit: 10, total: 0 }
-});
+const patientSessionReady = ref(!hasPatientToken.value);
 
 const loginForm = ref({ username: 'patient_demo', password: '123456', roleCode: 'patient' });
 const registerForm = ref({ username: 'patient_new', password: '123456', name: '新患者', gender: '女', phone: '13800000000' });
-const appointmentForm = ref({
-  patientId: 1,
-  patientName: '患者演示',
-  doctorId: 1,
-  doctorName: '王医生',
-  departmentId: 1,
-  departmentName: '心内科',
-  appointmentTime: tomorrowDefaultTime(),
-  remark: '复诊咨询'
-});
-const messageForm = ref({
-  userId: 1,
-  userName: '患者演示',
-  title: '用药咨询',
-  content: '请问处方药需要饭后服用吗？'
-});
-const aiForm = ref({ keyword: '高血压 随访', diagnosis: '高血压' });
-const patientDialogs = reactive({
-  appointment: false,
-  message: false,
-  password: false
-});
-const patientNavGroups = [
-  { name: 'home', label: '首页', path: '/home' },
-  {
-    label: '医疗服务',
-    children: [
-      { name: 'doctors', label: '医生介绍', path: '/doctors' },
-      { name: 'appointment', label: '预约挂号', path: '/appointment' }
-    ]
-  },
-  {
-    label: '就诊账单',
-    children: [
-      { name: 'record', label: '就诊记录', path: '/record' },
-      { name: 'fees', label: '费用支付', path: '/fees' }
-    ]
-  },
-  {
-    label: '处方检查',
-    children: [
-      { name: 'prescriptions', label: '处方记录', path: '/prescriptions' },
-      { name: 'tests', label: '检查申请', path: '/tests' }
-    ]
-  },
-  {
-    label: '健康互动',
-    children: [
-      { name: 'news', label: '健康资讯', path: '/news' },
-      { name: 'messages', label: '留言咨询', path: '/messages' }
-    ]
-  },
-  { name: 'profile', label: '个人中心', path: '/profile' },
-  { name: 'ai', label: '智能检索', path: '/ai' }
-];
-const patientNavItems = patientNavGroups.flatMap((group) => group.children || [group]);
 
-/**
- * 创建患者端游客态。
- * 没有有效 Token 时页面只保留公共浏览能力，避免把本地表单默认值误当成真实登录身份。
- */
+const avatarText = computed(() => String(session.value.name || session.value.username || '患').slice(0, 1));
+
 function createEmptyPatientSession() {
   return {
     userId: null,
@@ -596,165 +147,6 @@ function createEmptyPatientSession() {
   };
 }
 
-const currentPatient = computed(() => ({
-  patientId: session.value.userId || 1,
-  patientName: session.value.name || session.value.username || '患者演示'
-}));
-
-const patientPageMeta = {
-  home: ['首页', '欢迎来到安心医疗，随时查看院内服务公告'],
-  doctors: ['医生介绍', '了解医生科室、擅长方向与就诊服务'],
-  appointment: ['预约挂号', '健康从这里开始，我们随时为您提供专业服务'],
-  record: ['就诊记录', '在这里查看您的历史就诊记录，帮助您更好了解自己的健康状况'],
-  fees: ['费用支付', '查看您的费用记录并处理待支付账单'],
-  prescriptions: ['处方记录', '查看医生为您开具的处方记录'],
-  tests: ['检查申请', '查看检查申请、审核意见与检查结果'],
-  news: ['健康资讯', '了解最新健康知识与院内公告'],
-  messages: ['留言咨询', '向医护人员提交咨询并查看回复'],
-  profile: ['个人中心', '管理您的账号信息和登录安全'],
-  ai: ['智能检索', '通过智能工具快速检索病历摘要与用药建议']
-};
-
-const patientPageTitle = computed(() => patientPageMeta[activeTab.value]?.[0] || '安心医疗');
-const patientPageSubtitle = computed(() => patientPageMeta[activeTab.value]?.[1] || '为您提供贴心医疗服务');
-const patientAvatarText = computed(() => String(session.value.name || session.value.username || '患').slice(0, 1));
-
-function resolvePatientTab(tabName) {
-  const items = patientNavItems;
-  if (!items || items.length === 0) {
-    return 'home';
-  }
-  return items.some((item) => item.name === tabName) ? tabName : 'home';
-}
-
-function findPatientNavItem(tabName) {
-  const items = patientNavItems;
-  if (!items || items.length === 0) {
-    return null;
-  }
-  const safeTab = resolvePatientTab(tabName);
-  return items.find((item) => item.name === safeTab) || items[0];
-}
-
-function isPatientGroupActive(group) {
-  return Boolean(group.children?.some((item) => item.name === activeTab.value));
-}
-
-function goToPatientTab(tabName) {
-  const item = findPatientNavItem(tabName);
-  if (!item || route.name === item.name) {
-    return;
-  }
-  router.push({ name: item.name });
-}
-
-function tomorrowDefaultTime() {
-  const d = new Date();
-  d.setDate(d.getDate() + 1);
-  d.setHours(9, 0, 0, 0);
-  const pad = (n) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
-}
-
-function unwrap(response) {
-  const body = response?.data;
-  if (!body || body.code !== 0) {
-    throw new Error(body?.message || '接口返回异常');
-  }
-  return body.data;
-}
-
-function rowsOf(pageData) {
-  return Array.isArray(pageData?.rows) ? pageData.rows : [];
-}
-
-function applyPageData(target, pagerKey, pageData) {
-  target.value = rowsOf(pageData);
-  pagers[pagerKey].total = Number(pageData?.total || 0);
-  pagers[pagerKey].page = Number(pageData?.page || pagers[pagerKey].page);
-  pagers[pagerKey].limit = Number(pageData?.limit || pagers[pagerKey].limit);
-}
-
-function changePage(pagerKey, page, loader) {
-  pagers[pagerKey].page = page;
-  loader();
-}
-
-const STATUS_TEXT = {
-  pending: '待确认',
-  pending_audit: '待审核',
-  confirmed: '已确认',
-  approved: '已通过',
-  rejected: '已驳回',
-  executed: '已执行',
-  finished: '已完成',
-  not_submitted: '未提交',
-  archived: '已归档',
-  cancelled: '已取消',
-  in_hospital: '住院中',
-  discharged: '已出院',
-  unpaid: '未支付',
-  paid: '已支付',
-  published: '已发布'
-};
-
-function statusText(value) {
-  return STATUS_TEXT[value] || value || '-';
-}
-
-function statusFormatter(_row, _column, value) {
-  return statusText(value);
-}
-
-function doctorOptionLabel(doctor) {
-  const name = doctor?.name || doctor?.username || '未命名医生';
-  const departmentName = doctor?.departmentName || '未分配科室';
-  return `${name} - ${departmentName}`;
-}
-
-function showError(error) {
-  const status = error?.response?.status;
-  if (status === 401 || status === 403) {
-    return;
-  }
-  ElMessage.error(error?.response?.data?.message || error?.message || '操作失败');
-}
-
-/**
- * 登录后刷新患者上下文，后续预约、留言等表单使用同一份患者快照。
- */
-async function submitLogin() {
-  try {
-    const data = unwrap(await login(loginForm.value));
-    persistPatientSession(data);
-    loadPatientRouteData(activeTab.value);
-    ElMessage.success('登录成功');
-  } catch (error) {
-    showError(error);
-  }
-}
-
-/**
- * 注册成功后回填登录表单。
- * 注册接口不会直接签发 Token，因此这里不再伪造已登录状态，而是引导用户马上完成一次真实登录。
- */
-async function submitRegister() {
-  try {
-    unwrap(await registerPatient(registerForm.value));
-    loginForm.value.username = registerForm.value.username;
-    loginForm.value.password = registerForm.value.password;
-    loginForm.value.roleCode = 'patient';
-    patientAuthMode.value = 'login';
-    ElMessage.success('注册成功，请继续登录');
-  } catch (error) {
-    showError(error);
-  }
-}
-
-/**
- * 规范化患者会话数据。
- * 登录接口和 Token 校验接口返回字段口径略有差异，这里统一成页面使用的一套会话结构。
- */
 function normalizePatientSession(data, fallback = {}) {
   return {
     userId: data?.userId ?? data?.patientId ?? fallback.userId ?? null,
@@ -764,22 +156,10 @@ function normalizePatientSession(data, fallback = {}) {
   };
 }
 
-/**
- * 把患者会话应用到页面。
- * 预约、留言等表单都依赖这份快照，因此会话变化后要同步刷新相关默认值。
- */
 function applyPatientSession(nextSession) {
   session.value = nextSession;
-  appointmentForm.value.patientId = nextSession.userId || 1;
-  appointmentForm.value.patientName = nextSession.name || nextSession.username || '患者演示';
-  messageForm.value.userId = nextSession.userId || 1;
-  messageForm.value.userName = nextSession.name || nextSession.username || '患者演示';
 }
 
-/**
- * 保存患者登录态。
- * 登录成功和 Token 校验成功都复用这一入口，确保本地存储和页面显示始终同步。
- */
 function persistPatientSession(data) {
   const sessionSnapshot = normalizePatientSession(data, readStoredSession() || {});
   saveAuthState(data?.token || getStoredToken(), sessionSnapshot);
@@ -787,40 +167,6 @@ function persistPatientSession(data) {
   applyPatientSession(sessionSnapshot);
 }
 
-/**
- * 清理患者受保护数据。
- * 登录失效或退出后只清理需要鉴权的列表，公共医生/资讯数据继续保留，页面不会显得“全空”。
- */
-function clearProtectedPatientData() {
-  appointments.value = [];
-  records.value = [];
-  selectedRecordDetail.value = null;
-  fees.value = [];
-  prescriptions.value = [];
-  testRequests.value = [];
-  messages.value = [];
-}
-
-/**
- * 重置患者认证态。
- * 401 失效或主动退出时统一回到未登录状态，并把受保护数据从页面上撤掉。
- */
-function resetPatientAuth({ resetTab = true } = {}) {
-  clearAuthState();
-  hasPatientToken.value = false;
-  patientSessionReady.value = true;
-  applyPatientSession(createEmptyPatientSession());
-  clearProtectedPatientData();
-  if (resetTab) {
-    activeTab.value = 'home';
-    patientAuthMode.value = 'login';
-  }
-}
-
-/**
- * 恢复本地患者会话快照。
- * 仅恢复展示所需字段，后续仍会调用后端校验 Token 再决定是否加载受保护资源。
- */
 function restorePatientSession() {
   const storedSession = readStoredSession();
   if (storedSession) {
@@ -829,10 +175,6 @@ function restorePatientSession() {
   hasPatientToken.value = Boolean(getStoredToken());
 }
 
-/**
- * 校验患者 Token 是否仍然有效。
- * 校验通过后刷新本地快照；校验失败由统一认证事件负责清理会话。
- */
 async function verifyPatientSession() {
   if (!getStoredToken()) {
     return false;
@@ -846,357 +188,92 @@ async function verifyPatientSession() {
   }
 }
 
-/**
- * 退出患者登录。
- * 即使后端退出接口失败，也要先释放本地会话，保证用户能重新登录。
- */
+function resetPatientAuth() {
+  clearAuthState();
+  hasPatientToken.value = false;
+  patientSessionReady.value = true;
+  applyPatientSession(createEmptyPatientSession());
+  patientAuthMode.value = 'login';
+}
+
+async function submitLogin() {
+  try {
+    const data = unwrap(await login(loginForm.value));
+    persistPatientSession(data);
+    await loadPatientBalance();
+    ElMessage.success('登录成功');
+  } catch (error) {
+    showError(error);
+  }
+}
+
+async function submitRegister() {
+  try {
+    unwrap(await registerPatient(registerForm.value));
+    loginForm.value.username = registerForm.value.username;
+    loginForm.value.password = registerForm.value.password;
+    loginForm.value.roleCode = 'patient';
+    patientAuthMode.value = 'login';
+    ElMessage.success('注册成功，请继续登录');
+  } catch (error) {
+    showError(error);
+  }
+}
+
 async function logoutPatientAction() {
   try {
     if (getStoredToken()) {
       await logout();
     }
   } catch (error) {
-    // 退出失败时继续按本地退出处理，避免保留一份已经不可控的旧登录态。
   }
   resetPatientAuth();
-  goToPatientTab('home');
   ElMessage.success('已退出登录');
 }
 
-async function loadDoctors() {
-  try {
-    applyPageData(doctors, 'doctors', unwrap(await fetchDoctors({ page: pagers.doctors.page, limit: pagers.doctors.limit })));
-    syncDoctor(appointmentForm.value.doctorId);
-  } catch (error) {
-    showError(error);
-  }
-}
-
-function syncDoctor(doctorId) {
-  const doctor = doctors.value.find((item) => item.id === doctorId);
-  if (!doctor) {
-    return;
-  }
-  appointmentForm.value.doctorName = doctor.name || doctor.username || '未命名医生';
-  appointmentForm.value.departmentId = doctor.departmentId;
-  appointmentForm.value.departmentName = doctor.departmentName || '未分配科室';
-}
-
-function normalizeAppointmentTime(value) {
-  const text = String(value || '').trim().replace('T', ' ');
-  if (/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/.test(text)) {
-    return `${text}:00`;
-  }
-  return text;
-}
-
-function selectNews(row) {
-  selectedNews.value = row || null;
-}
-
-/**
- * 创建预约时把患者和医生快照一起提交，满足后端演示版不跨服务补全的约束。
- */
-async function submitAppointment() {
-  try {
-    Object.assign(appointmentForm.value, currentPatient.value);
-    syncDoctor(appointmentForm.value.doctorId);
-    const payload = {
-      ...appointmentForm.value,
-      appointmentTime: normalizeAppointmentTime(appointmentForm.value.appointmentTime)
-    };
-    unwrap(await createAppointment(payload));
-    appointmentForm.value.appointmentTime = payload.appointmentTime;
-    pagers.appointments.page = 1;
-    await loadAppointments();
-    patientDialogs.appointment = false;
-    ElMessage.success('预约已提交');
-  } catch (error) {
-    showError(error);
-  }
-}
-
-async function loadAppointments() {
-  try {
-    applyPageData(appointments, 'appointments', unwrap(await fetchAppointments({ patientId: currentPatient.value.patientId, page: pagers.appointments.page, limit: pagers.appointments.limit })));
-  } catch (error) {
-    showError(error);
-  }
-}
-
-async function cancelAppointmentAction(row) {
-  try {
-    await cancelAppointment(row.id, { cancelReason: '患者主动取消' });
-    await loadAppointments();
-    ElMessage.success('预约已取消');
-  } catch (error) {
-    showError(error);
-  }
-}
-
-async function loadRecords() {
-  try {
-    applyPageData(records, 'records', unwrap(await fetchMedicalRecords({ patientId: currentPatient.value.patientId, page: pagers.records.page, limit: pagers.records.limit })));
-  } catch (error) {
-    showError(error);
-  }
-}
-
-/**
- * 查看病历详情。
- * 列表只展示摘要字段，点击后再取详情，保证患者看到的是包含病情描述和附件地址的完整病历。
- */
-async function selectRecordDetail(row) {
-  if (!row?.id) {
-    selectedRecordDetail.value = null;
-    return;
-  }
-
-  try {
-    selectedRecordDetail.value = unwrap(await fetchMedicalRecordDetail(row.id));
-  } catch (error) {
-    showError(error);
-  }
-}
-
-async function loadFees() {
-  try {
-    applyPageData(fees, 'fees', unwrap(await fetchFees({ patientId: currentPatient.value.patientId, page: pagers.fees.page, limit: pagers.fees.limit })));
-    await loadPatientBalance();
-  } catch (error) {
-    showError(error);
-  }
-}
-
 async function loadPatientBalance() {
+  if (!session.value.userId) {
+    patientBalance.value = '0.00';
+    return;
+  }
   try {
-    const data = unwrap(await request.get(`/user-management/patients/${currentPatient.value.patientId}/balance`));
+    const data = unwrap(await request.get(`/user-management/patients/${session.value.userId}/balance`));
     patientBalance.value = Number(data).toFixed(2);
   } catch {
     patientBalance.value = '0.00';
   }
 }
 
-async function payFeeAction(row) {
+async function submitRecharge(amount) {
   try {
-    unwrap(await payFee(row.id));
-    if (row?.businessType === 'test_request' && row?.businessId) {
-      unwrap(await payTestRequest(row.businessId));
-    }
-    await loadFees();
-    await loadTestRequests();
-    ElMessage.success('支付成功');
+    const data = unwrap(await request.post(`/user-management/patients/${session.value.userId}/recharge`, { amount }));
+    patientBalance.value = Number(data).toFixed(2);
+    return true;
   } catch (error) {
     showError(error);
+    return false;
   }
 }
 
-async function goToCheckAction(row) {
+async function submitPasswordChange(passwordData) {
   try {
-    const existingFeePage = unwrap(await fetchFees({
-      patientId: currentPatient.value.patientId,
-      businessType: 'test_request',
-      businessId: row.id,
-      payStatus: 'unpaid',
-      page: 1,
-      limit: 1
-    }));
-    const existingFee = rowsOf(existingFeePage)[0];
-    if (!existingFee) {
-      unwrap(await createFee({
-        patientId: currentPatient.value.patientId,
-        patientName: currentPatient.value.patientName || session.value.name || session.value.username,
-        businessType: 'test_request',
-        businessId: row.id,
-        feeItemCode: 'test_request_check'
-      }));
-    }
-    pagers.fees.page = 1;
-    ElMessage.success('已生成检查费用，请支付');
-    activeTab.value = 'fees';
-    await loadFees();
+    unwrap(await changePassword(passwordData));
+    return true;
   } catch (error) {
     showError(error);
+    return false;
   }
 }
 
-async function loadPrescriptions() {
-  try {
-    applyPageData(prescriptions, 'prescriptions', unwrap(await fetchPrescriptions({ patientId: currentPatient.value.patientId, page: pagers.prescriptions.page, limit: pagers.prescriptions.limit })));
-  } catch (error) {
-    showError(error);
-  }
-}
-
-async function loadTestRequests() {
-  try {
-    applyPageData(testRequests, 'testRequests', unwrap(await fetchTestRequests({ patientId: currentPatient.value.patientId, page: pagers.testRequests.page, limit: pagers.testRequests.limit })));
-  } catch (error) {
-    showError(error);
-  }
-}
-
-async function loadNews() {
-  try {
-    applyPageData(newsList, 'news', unwrap(await fetchNews({ page: pagers.news.page, limit: pagers.news.limit })));
-    if (newsList.value.length > 0 && !selectedNews.value) {
-      selectedNews.value = newsList.value[0];
-    }
-  } catch (error) {
-    showError(error);
-  }
-}
-
-async function loadCarousels() {
-  try {
-    applyPageData(carousels, 'carousels', unwrap(await fetchCarousels({ page: pagers.carousels.page, limit: pagers.carousels.limit })));
-  } catch (error) {
-    showError(error);
-  }
-}
-
-/**
- * 留言提交保留患者身份快照，后台回复时可以直接看到咨询人。
- */
-async function submitMessage() {
-  try {
-    Object.assign(messageForm.value, { userId: currentPatient.value.patientId, userName: currentPatient.value.patientName });
-    await createMessage(messageForm.value);
-    await loadMessages();
-    patientDialogs.message = false;
-    ElMessage.success('留言已提交');
-  } catch (error) {
-    showError(error);
-  }
-}
-
-async function loadMessages() {
-  try {
-    applyPageData(messages, 'messages', unwrap(await fetchMessages({ page: pagers.messages.page, limit: pagers.messages.limit })));
-  } catch (error) {
-    showError(error);
-  }
-}
-
-async function runAiSearch() {
-  try {
-    aiResult.value = JSON.stringify(unwrap(await smartSearch({ keyword: aiForm.value.keyword })), null, 2);
-  } catch (error) {
-    showError(error);
-  }
-}
-
-async function runMedicineRecommend() {
-  try {
-    aiResult.value = JSON.stringify(unwrap(await recommendMedicine({ diagnosis: aiForm.value.diagnosis })), null, 2);
-  } catch (error) {
-    showError(error);
-  }
-}
-
-/**
- * 修改患者密码。
- * 成功后保留当前会话，方便继续演示预约、病历和费用主链路。
- */
-async function submitPasswordChange() {
-  try {
-    unwrap(await changePassword(passwordForm.value));
-    patientDialogs.password = false;
-    ElMessage.success('密码已修改');
-  } catch (error) {
-    showError(error);
-  }
-}
-
-/**
- * 统一加载患者受保护数据。
- * 只有登录态通过校验后才触发，避免游客首次进入页面就连续收到多次 401。
- */
-function loadProtectedPatientData() {
-  loadAppointments();
-  loadRecords();
-  loadFees();
-  loadPrescriptions();
-  loadTestRequests();
-  loadMessages();
-}
-
-/**
- * 根据当前路由加载患者端页面数据。
- * 菜单点击和刷新恢复都走这里，避免回到首页后再一次性请求所有业务接口。
- */
-function loadPatientRouteData(tabName) {
-  const tab = resolvePatientTab(tabName);
-  if (!hasPatientToken.value && tab !== 'home') {
-    return;
-  }
-
-  if (tab === 'home') {
-    loadCarousels();
-    return;
-  }
-
-  if (tab === 'doctors') {
-    loadDoctors();
-    return;
-  }
-
-  if (tab === 'appointment') {
-    loadDoctors();
-    loadAppointments();
-    return;
-  }
-
-  if (tab === 'record') {
-    loadRecords();
-    return;
-  }
-
-  if (tab === 'fees') {
-    loadFees();
-    return;
-  }
-
-  if (tab === 'prescriptions') {
-    loadPrescriptions();
-    return;
-  }
-
-  if (tab === 'tests') {
-    loadTestRequests();
-    return;
-  }
-
-  if (tab === 'news') {
-    loadNews();
-    return;
-  }
-
-  if (tab === 'messages') {
-    loadMessages();
-  }
-}
-
-function syncPatientRouteState(routeName) {
-  const nextTab = resolvePatientTab(routeName);
-  if (activeTab.value !== nextTab) {
-    activeTab.value = nextTab;
-  }
-  if (patientSessionReady.value) {
-    loadPatientRouteData(nextTab);
-  }
-}
-
-/**
- * 处理患者端统一认证事件。
- * 401 需要清理登录态并提示重新登录；403 只提醒当前权限不足，保留已有会话。
- */
 function handlePatientAuthEvent(event) {
   const status = event?.detail?.status;
-  if (status === 401) {
+  const clearState = event?.detail?.clearState;
+  if (status === 401 && clearState !== false) {
     resetPatientAuth();
-    goToPatientTab('home');
     ElMessage.warning(event?.detail?.message || '登录状态已过期，请重新登录');
+    return;
+  }
+  if (status === 401 && clearState === false) {
     return;
   }
   if (status === 403) {
@@ -1204,26 +281,40 @@ function handlePatientAuthEvent(event) {
   }
 }
 
+provide('session', session);
+provide('patientBalance', patientBalance);
+provide('loadPatientBalance', loadPatientBalance);
+provide('submitRecharge', submitRecharge);
+provide('submitPasswordChange', submitPasswordChange);
+
 onMounted(async () => {
   window.addEventListener(AUTH_EVENT_NAME, handlePatientAuthEvent);
   restorePatientSession();
-  await verifyPatientSession();
+  const valid = await verifyPatientSession();
   patientSessionReady.value = true;
-  syncPatientRouteState(route.name);
+  if (valid) {
+    await loadPatientBalance();
+  }
 });
-
-watch(
-  () => route.name,
-  (routeName) => {
-    syncPatientRouteState(routeName);
-  },
-  { immediate: true }
-);
 
 onBeforeUnmount(() => {
   window.removeEventListener(AUTH_EVENT_NAME, handlePatientAuthEvent);
 });
 </script>
+
+<style>
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  background: #f7f6ef;
+  color: #2f3f47;
+}
+</style>
 
 <style scoped>
 .auth-page {
@@ -1236,7 +327,6 @@ onBeforeUnmount(() => {
     radial-gradient(circle at 78% 24%, rgba(167, 217, 200, 0.28), transparent 16%),
     radial-gradient(circle at 68% 72%, rgba(202, 230, 190, 0.22), transparent 15%),
     #f7f7ef;
-  color: #1f2937;
 }
 
 .auth-card {
@@ -1271,7 +361,6 @@ onBeforeUnmount(() => {
   margin: 0;
   color: #3c7965;
   font-size: 25px;
-  letter-spacing: 0;
 }
 
 .auth-brand p {
@@ -1301,32 +390,36 @@ onBeforeUnmount(() => {
   border-color: #64ad70;
 }
 
-.patient-workspace {
+.app-layout {
   min-height: 100vh;
-  padding: 0 0 28px;
+  display: flex;
+  flex-direction: column;
   background: #f7f6ef;
-  color: #2f3f47;
 }
 
-.topbar {
+.app-body {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+
+.app-header {
   position: sticky;
   top: 0;
-  z-index: 10;
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
+  z-index: 100;
+  display: flex;
   align-items: center;
-  gap: 18px;
-  min-height: 64px;
-  padding: 0 max(24px, calc((100vw - 980px) / 2));
-  margin-bottom: 34px;
-  background: rgba(255, 255, 255, 0.95);
-  border-bottom: 1px solid #edf1ed;
-  box-shadow: 0 4px 14px rgba(28, 57, 44, 0.08);
-  backdrop-filter: blur(12px);
+  justify-content: space-between;
+  height: 64px;
+  padding: 0 32px;
+  background: rgba(255, 255, 255, 0.96);
+  border-bottom: 1px solid #e8efe6;
+  box-shadow: 0 2px 12px rgba(28, 57, 44, 0.06);
+  backdrop-filter: blur(10px);
 }
 
-.brand {
-  display: inline-flex;
+.app-header .brand {
+  display: flex;
   align-items: center;
   gap: 10px;
   color: #3f8067;
@@ -1335,214 +428,129 @@ onBeforeUnmount(() => {
   white-space: nowrap;
 }
 
-.patient-nav {
+.nav-links {
   display: flex;
-  align-items: stretch;
-  min-width: 0;
+  gap: 4px;
+}
+
+.nav-links a {
+  display: inline-flex;
+  align-items: center;
   height: 64px;
-  overflow-x: auto;
-  scrollbar-width: none;
-}
-
-.patient-nav::-webkit-scrollbar {
-  display: none;
-}
-
-.patient-nav .el-dropdown {
-  display: flex;
-}
-
-.patient-nav button {
-  min-width: 86px;
-  padding: 0 14px;
+  padding: 0 18px;
   color: #53656a;
-  background: transparent;
-  border: 0;
+  text-decoration: none;
+  font-size: 14px;
+  font-weight: 500;
   border-bottom: 3px solid transparent;
-  cursor: pointer;
-  white-space: nowrap;
+  transition: all 0.2s;
 }
 
-.patient-nav button.active,
-.patient-nav button:hover {
+.nav-links a:hover,
+.nav-links a.active {
   color: #4fa66b;
   background: #eef8f0;
   border-bottom-color: #63b878;
 }
 
-.avatar {
+.user-area {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.balance {
+  display: inline-block;
+  padding: 4px 14px;
+  color: #0b74b8;
+  background: #dbeafe;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.avatar-btn {
   display: inline-grid;
-  width: 28px;
-  height: 28px;
+  width: 36px;
+  height: 36px;
   place-items: center;
   color: #ffffff;
   background: #8bcf9a;
   border-radius: 50%;
-  font-size: 13px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s;
 }
 
-.eyebrow {
-  margin: 0 0 6px;
-  color: #0f766e;
-  font-size: 14px;
+.avatar-btn:hover {
+  background: #6ab87d;
 }
 
-h1,
-h2 {
-  margin: 0;
-  letter-spacing: 0;
-}
-
-h1 {
-  font-size: 28px;
-}
-
-h2 {
-  margin-bottom: 16px;
-  font-size: 18px;
-}
-
-.session,
-.button-row,
-.panel-head {
+.sidebar-toggle {
   display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.session {
   justify-content: flex-end;
-  min-width: 220px;
-  color: #536366;
-}
-
-.page-hero {
-  width: min(880px, calc(100vw - 40px));
-  min-height: 96px;
-  display: grid;
-  place-items: center;
-  margin: 0 auto 20px;
-  padding: 18px 28px;
-  text-align: center;
-  background: linear-gradient(100deg, #9cd7ec 0%, #bfe7b1 100%);
-  border-radius: 9px;
-  color: #2e4b56;
-}
-
-.page-hero h1 {
-  font-size: 24px;
-  font-weight: 700;
-}
-
-.page-hero p {
-  margin: 8px 0 0;
-  color: #567070;
+  padding: 12px 16px 8px;
+  color: #8a9e95;
   font-size: 13px;
+  cursor: pointer;
+  user-select: none;
+  transition: color 0.2s;
 }
 
-.workspace-tabs {
-  width: min(880px, calc(100vw - 40px));
-  margin: 0 auto;
-  padding: 0;
+.sidebar-toggle:hover {
+  color: #3f8067;
 }
 
-.workspace-tabs :deep(.el-tabs__header) {
-  display: none;
+.sidebar {
+  background: #ffffff;
+  border-right: 1px solid #e8efe6;
+  box-shadow: 2px 0 10px rgba(28, 57, 44, 0.04);
+  transition: width 0.25s ease;
+  width: 220px;
+  flex-shrink: 0;
 }
 
-.workspace-tabs :deep(.el-tabs__nav-wrap::after) {
-  height: 1px;
-  background: #edf1ed;
+.sidebar.collapsed {
+  width: 64px;
 }
 
-.workspace-tabs :deep(.el-tabs__item) {
-  min-width: 92px;
-  height: 52px;
-  color: #58686b;
+.sidebar :deep(.el-menu) {
+  border-right: none;
 }
 
-.workspace-tabs :deep(.el-tabs__item.is-active) {
-  color: #57a76e;
+.sidebar :deep(.el-menu-item) {
+  height: 48px;
+  line-height: 48px;
+  border-radius: 6px;
+  margin: 2px 8px;
+  transition: all 0.2s;
+}
+
+.sidebar :deep(.el-menu-item:hover) {
   background: #eef8f0;
 }
 
-.workspace-tabs :deep(.el-tabs__active-bar) {
-  height: 3px;
-  background: #64b77b;
+.sidebar :deep(.el-menu-item.is-active) {
+  background: #e2f3e5;
+  color: #3f8067;
+  font-weight: 600;
 }
 
-.home-layout {
-  display: grid;
-  gap: 18px;
+.app-main {
+  flex: 1;
+  overflow-y: auto;
+  padding: 28px 32px 40px;
+  transition: padding 0.25s ease;
 }
 
-.single-column {
-  display: grid;
-  gap: 18px;
-}
-
-.two-column {
-  display: grid;
-  grid-template-columns: minmax(260px, 360px) minmax(380px, 1fr);
-  gap: 18px;
-  align-items: start;
-}
-
-.panel {
-  min-width: 0;
-  padding: 18px;
-  background: #ffffff;
-  border: 1px solid #eef2ee;
-  border-radius: 9px;
-  box-shadow: 0 8px 22px rgba(94, 110, 95, 0.06);
-}
-
-.panel-head {
-  justify-content: space-between;
-  margin-bottom: 12px;
-}
-
-.panel-head h2 {
-  margin-bottom: 0;
-}
-
-.detail-box {
-  margin-top: 12px;
-}
-
-.dialog-form {
-  padding-top: 4px;
-}
-
-.dialog-footer {
-  display: flex;
-  justify-content: flex-end;
-  gap: 10px;
-  margin-top: 10px;
-}
-
-.result-box {
-  min-height: 260px;
-  max-height: 360px;
-  overflow: auto;
-  padding: 14px;
-  margin: 0;
-  background: #173d43;
-  color: #d9f8e6;
-  border-radius: 8px;
-  white-space: pre-wrap;
+.app-main.expanded {
+  padding: 28px 32px 40px;
 }
 
 :deep(.el-button--primary:not(.is-link)) {
   --el-button-bg-color: #2f9e58;
   --el-button-border-color: #2f9e58;
-  --el-button-text-color: #ffffff;
-  --el-button-hover-bg-color: #267e47;
-  --el-button-hover-border-color: #267e47;
-  --el-button-hover-text-color: #ffffff;
-  --el-button-active-bg-color: #206d3d;
-  --el-button-active-border-color: #206d3d;
-  --el-button-active-text-color: #ffffff;
   background-color: #2f9e58;
   border-color: #2f9e58;
   color: #ffffff;
@@ -1555,167 +563,31 @@ h2 {
   color: #ffffff;
 }
 
-:deep(.el-button--danger:not(.is-link):not(.is-plain)) {
-  --el-button-bg-color: #d12d2d;
-  --el-button-border-color: #d12d2d;
-  --el-button-text-color: #ffffff;
-  --el-button-hover-bg-color: #b91c1c;
-  --el-button-hover-border-color: #b91c1c;
-  --el-button-hover-text-color: #ffffff;
-  --el-button-active-bg-color: #991b1b;
-  --el-button-active-border-color: #991b1b;
-  --el-button-active-text-color: #ffffff;
-  background-color: #d12d2d;
-  border-color: #d12d2d;
-  color: #ffffff;
-  font-weight: 600;
-}
-
-:deep(.el-button--danger:not(.is-link):not(.is-plain):hover) {
-  background-color: #b91c1c;
-  border-color: #b91c1c;
-  color: #ffffff;
-}
-
-:deep(.el-button--danger.is-plain:not(.is-link)) {
-  --el-button-bg-color: #fff1f1;
-  --el-button-border-color: #ef9a9a;
-  --el-button-text-color: #b42318;
-  --el-button-hover-bg-color: #d12d2d;
-  --el-button-hover-border-color: #d12d2d;
-  --el-button-hover-text-color: #ffffff;
-  --el-button-active-bg-color: #b91c1c;
-  --el-button-active-border-color: #b91c1c;
-  background-color: #fff1f1;
-  border-color: #ef9a9a;
-  color: #b42318;
-}
-
-:deep(.el-button--danger.is-plain:not(.is-link):hover) {
-  background-color: #d12d2d;
-  border-color: #d12d2d;
-  color: #ffffff;
-}
-
-:deep(.el-button:not(.el-button--primary):not(.el-button--danger):not(.is-link)) {
-  --el-button-bg-color: #ffffff;
-  --el-button-border-color: #cfd9d3;
-  --el-button-text-color: #334155;
-  --el-button-hover-bg-color: #f3faf5;
-  --el-button-hover-border-color: #76bd84;
-  --el-button-hover-text-color: #1f7a4d;
-  background-color: #ffffff;
-  border-color: #cfd9d3;
-  color: #334155;
-  font-weight: 600;
-}
-
-:deep(.el-button:not(.el-button--primary):not(.el-button--danger):not(.is-link):hover) {
-  background-color: #f3faf5;
-  border-color: #76bd84;
-  color: #1f7a4d;
-}
-
-:deep(.el-button.is-link) {
-  --el-button-bg-color: transparent;
-  --el-button-border-color: transparent;
-  --el-button-hover-bg-color: transparent;
-  --el-button-hover-border-color: transparent;
-  background-color: transparent;
-  border-color: transparent;
-  font-weight: 600;
-}
-
-:deep(.el-button.is-link.el-button--primary) {
-  --el-button-text-color: #1f7a4d;
-  --el-button-hover-text-color: #145c39;
-  color: #1f7a4d;
-}
-
-:deep(.el-button.is-link.el-button--primary:hover) {
-  background-color: #eef8f0;
-  color: #145c39;
-}
-
-:deep(.el-button.is-link.el-button--danger) {
-  --el-button-text-color: #b42318;
-  --el-button-hover-text-color: #8f1d14;
-  background-color: transparent;
-  color: #b42318;
-}
-
-:deep(.el-button.is-link.el-button--danger:hover) {
-  background-color: #fff1f1;
-  color: #8f1d14;
-}
-
-:deep(.el-button.is-disabled),
-:deep(.el-button.is-disabled:hover) {
-  background-color: #eef2f5;
-  border-color: #d9e1e8;
-  color: #7a8790;
-}
-
-:deep(.el-table) {
-  color: #3c4d52;
-}
-
-:deep(.el-table th.el-table__cell) {
-  background: #f8fbf8;
-  color: #526464;
-  font-weight: 600;
-}
-
 :deep(.el-pagination.is-background .el-pager li.is-active) {
   background-color: #63b878;
 }
 
 @media (max-width: 900px) {
-  .patient-workspace {
-    padding-bottom: 16px;
+  .app-header {
+    flex-wrap: wrap;
+    height: auto;
+    padding: 12px 16px;
+    gap: 8px;
   }
 
-  .auth-card {
-    padding: 20px;
+  .nav-links {
+    order: 3;
+    width: 100%;
+    overflow-x: auto;
   }
 
-  .two-column {
-    grid-template-columns: 1fr;
-  }
-
-  .topbar {
-    display: grid;
-    grid-template-columns: 1fr;
-    padding: 14px 16px;
-  }
-
-  .patient-nav {
+  .nav-links a {
     height: 44px;
+    white-space: nowrap;
   }
 
-  .session {
-    justify-content: flex-start;
+  .app-main {
+    padding: 16px;
   }
-}
-
-.balance-badge {
-  display: inline-block;
-  padding: 4px 14px;
-  margin-right: 12px;
-  color: #0b74b8;
-  background: #dbeafe;
-  border-radius: 6px;
-  font-size: 14px;
-  font-weight: 600;
-}
-
-.paid-tag {
-  display: inline-block;
-  padding: 2px 10px;
-  color: #16a34a;
-  background: #dcfce7;
-  border-radius: 4px;
-  font-size: 13px;
-  font-weight: 500;
 }
 </style>

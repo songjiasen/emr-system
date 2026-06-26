@@ -421,6 +421,7 @@ public class UserDirectoryService {
         row.put("departmentName", entity.getDepartmentName());
         row.put("specialty", entity.getSpecialty());
         row.put("profile", entity.getProfile());
+        row.put("isFeatured", Boolean.TRUE.equals(entity.getIsFeatured()));
         return row;
     }
 
@@ -566,6 +567,21 @@ public class UserDirectoryService {
             throw new IllegalArgumentException("余额不足，当前余额 " + currentBalance + " 元");
         }
         BigDecimal newBalance = currentBalance.subtract(amount);
+        entity.setBalance(newBalance);
+        patientMapper.updateById(entity);
+        return newBalance;
+    }
+
+    /**
+     * 充值患者余额。
+     */
+    public BigDecimal rechargePatientBalance(Long patientId, BigDecimal amount) {
+        if (amount == null || amount.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new IllegalArgumentException("充值金额必须大于0");
+        }
+        PatientEntity entity = requirePatient(patientId);
+        BigDecimal currentBalance = entity.getBalance() != null ? entity.getBalance() : BigDecimal.ZERO;
+        BigDecimal newBalance = currentBalance.add(amount);
         entity.setBalance(newBalance);
         patientMapper.updateById(entity);
         return newBalance;

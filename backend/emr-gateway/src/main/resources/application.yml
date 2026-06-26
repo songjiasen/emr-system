@@ -48,7 +48,7 @@ spring:
         - id: emr-clinical-service
           uri: ${EMR_CLINICAL_SERVICE_URL:http://localhost:8105}
           predicates:
-            - Path=/cl584734139/medical-orders/**,/cl584734139/prescriptions/**,/cl584734139/test-requests/**
+            - Path=/cl584734139/medical-orders/**,/cl584734139/prescriptions/**,/cl584734139/test-requests/**,/cl584734139/medicines/**,/cl584734139/test-items/**
           filters:
             - StripPrefix=1
         - id: emr-workflow-service

@@ -23,6 +23,7 @@ public class PrescriptionEntity {
     private String doctorName;
     private String medicineName;
     private String quantity;
+    private java.math.BigDecimal unitPrice;
     private String usageText;
     private String remark;
     private String status;
@@ -47,6 +48,8 @@ public class PrescriptionEntity {
     public void setMedicineName(String medicineName) { this.medicineName = medicineName; }
     public String getQuantity() { return quantity; }
     public void setQuantity(String quantity) { this.quantity = quantity; }
+    public java.math.BigDecimal getUnitPrice() { return unitPrice; }
+    public void setUnitPrice(java.math.BigDecimal unitPrice) { this.unitPrice = unitPrice; }
     public String getUsageText() { return usageText; }
     public void setUsageText(String usageText) { this.usageText = usageText; }
     public String getRemark() { return remark; }

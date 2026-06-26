@@ -3,16 +3,22 @@ package com.emr.clinical.service.impl;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.emr.clinical.entity.MedicalOrderEntity;
 import com.emr.clinical.entity.MedicalOrderExecutionEntity;
+import com.emr.clinical.entity.MedicineEntity;
 import com.emr.clinical.entity.PrescriptionEntity;
+import com.emr.clinical.entity.TestItemEntity;
 import com.emr.clinical.entity.TestRequestEntity;
 import com.emr.clinical.mapper.MedicalOrderExecutionMapper;
 import com.emr.clinical.mapper.MedicalOrderMapper;
+import com.emr.clinical.mapper.MedicineMapper;
 import com.emr.clinical.mapper.PrescriptionMapper;
+import com.emr.clinical.mapper.TestItemMapper;
 import com.emr.clinical.mapper.TestRequestMapper;
 import com.emr.clinical.service.ClinicalService;
 import com.emr.common.PageResult;
 import org.springframework.stereotype.Service;
+import org.springframework.web.client.RestTemplate;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -37,17 +43,26 @@ public class DatabaseClinicalService implements ClinicalService {
     private final MedicalOrderExecutionMapper executionMapper;
     private final PrescriptionMapper prescriptionMapper;
     private final TestRequestMapper testRequestMapper;
+    private final MedicineMapper medicineMapper;
+    private final TestItemMapper testItemMapper;
+    private final RestTemplate restTemplate;
 
     public DatabaseClinicalService(
             MedicalOrderMapper medicalOrderMapper,
             MedicalOrderExecutionMapper executionMapper,
             PrescriptionMapper prescriptionMapper,
-            TestRequestMapper testRequestMapper
+            TestRequestMapper testRequestMapper,
+            MedicineMapper medicineMapper,
+            TestItemMapper testItemMapper,
+            RestTemplate restTemplate
     ) {
         this.medicalOrderMapper = medicalOrderMapper;
         this.executionMapper = executionMapper;
         this.prescriptionMapper = prescriptionMapper;
         this.testRequestMapper = testRequestMapper;
+        this.medicineMapper = medicineMapper;
+        this.testItemMapper = testItemMapper;
+        this.restTemplate = restTemplate;
     }
 
     @Override
@@ -168,9 +183,22 @@ public class DatabaseClinicalService implements ClinicalService {
         entity.setDoctorName(requireText(payload.get("doctorName"), "医生姓名不能为空"));
         entity.setMedicineName(requireText(payload.get("medicineName"), "药品名称不能为空"));
         entity.setQuantity(blankToNull(payload.get("quantity")));
+
+        String requestedMedicineName = entity.getMedicineName();
+        MedicineEntity medicine = medicineMapper.selectOne(new LambdaQueryWrapper<MedicineEntity>()
+                .eq(MedicineEntity::getMedicineName, requestedMedicineName)
+                .eq(MedicineEntity::getEnabled, true));
+        if (medicine != null) {
+            entity.setUnitPrice(medicine.getUnitPrice());
+        } else if (payload.get("unitPrice") instanceof Number) {
+            entity.setUnitPrice(new BigDecimal(payload.get("unitPrice").toString()));
+        } else {
+            entity.setUnitPrice(BigDecimal.ZERO);
+        }
+
         entity.setUsageText(blankToNull(payload.get("usageText")));
         entity.setRemark(blankToNull(payload.get("remark")));
-        entity.setStatus("created");
+        entity.setStatus("pending_audit");
         prescriptionMapper.insert(entity);
         return toPrescriptionRow(entity);
     }
@@ -207,11 +235,166 @@ public class DatabaseClinicalService implements ClinicalService {
     }
 
     @Override
+    public Map<String, Object> updatePrescriptionAuditResult(Long id, Map<String, Object> request) {
+        PrescriptionEntity entity = requirePrescription(id);
+        if (!"pending_audit".equals(entity.getStatus())) {
+            throw new IllegalArgumentException("处方当前状态不允许审核");
+        }
+        Map<String, Object> payload = safePayload(request);
+        String auditResult = requireText(payload.get("auditResult"), "审核结果不能为空");
+        if ("approved".equals(auditResult)) {
+            entity.setStatus("approved");
+        } else if ("rejected".equals(auditResult)) {
+            entity.setStatus("rejected");
+        } else {
+            throw new IllegalArgumentException("审核结果必须为 approved 或 rejected");
+        }
+        prescriptionMapper.updateById(entity);
+
+        if ("approved".equals(auditResult) && entity.getUnitPrice() != null && entity.getUnitPrice().compareTo(BigDecimal.ZERO) > 0) {
+            try {
+                BigDecimal quantity = BigDecimal.ONE;
+                if (entity.getQuantity() != null && !entity.getQuantity().isBlank()) {
+                    try {
+                        quantity = new BigDecimal(entity.getQuantity().trim());
+                    } catch (NumberFormatException ignored) {
+                    }
+                }
+                BigDecimal totalAmount = entity.getUnitPrice().multiply(quantity);
+
+                Map<String, Object> feePayload = new LinkedHashMap<>();
+                feePayload.put("patientId", entity.getPatientId());
+                feePayload.put("patientName", entity.getPatientName());
+                feePayload.put("businessType", "prescription");
+                feePayload.put("businessId", entity.getId());
+                feePayload.put("feeItemCode", "prescription_drug");
+                feePayload.put("amount", totalAmount);
+                restTemplate.postForEntity(
+                        "http://127.0.0.1:8107/fees",
+                        feePayload,
+                        String.class
+                );
+            } catch (Exception ignored) {
+            }
+        }
+
+        return toPrescriptionRow(entity);
+    }
+
+    @Override
     public Map<String, Object> deletePrescription(Long id) {
         PrescriptionEntity entity = requirePrescription(id);
         entity.setStatus("cancelled");
         prescriptionMapper.updateById(entity);
         return toPrescriptionRow(entity);
+    }
+
+    @Override
+    public Map<String, Object> payPrescription(Long id) {
+        PrescriptionEntity entity = requirePrescription(id);
+        if (!"approved".equals(entity.getStatus())) {
+            throw new IllegalArgumentException("处方未审核通过，无法支付");
+        }
+        entity.setStatus("paid");
+        prescriptionMapper.updateById(entity);
+        return toPrescriptionRow(entity);
+    }
+
+    @Override
+    public List<Map<String, Object>> listMedicines() {
+        return medicineMapper.selectList(new LambdaQueryWrapper<MedicineEntity>()
+                .eq(MedicineEntity::getEnabled, true)
+                .orderByAsc(MedicineEntity::getSortOrder)
+                .orderByAsc(MedicineEntity::getId))
+                .stream()
+                .map(m -> {
+                    Map<String, Object> row = new LinkedHashMap<>();
+                    row.put("id", m.getId());
+                    row.put("medicineName", m.getMedicineName());
+                    row.put("specification", m.getSpecification());
+                    row.put("unit", m.getUnit());
+                    row.put("unitPrice", m.getUnitPrice());
+                    return row;
+                })
+                .toList();
+    }
+
+    @Override
+    public List<Map<String, Object>> listTestItems() {
+        return testItemMapper.selectList(new LambdaQueryWrapper<TestItemEntity>()
+                .eq(TestItemEntity::getEnabled, true)
+                .orderByAsc(TestItemEntity::getSortOrder)
+                .orderByAsc(TestItemEntity::getId))
+                .stream()
+                .map(m -> {
+                    Map<String, Object> row = new LinkedHashMap<>();
+                    row.put("id", m.getId());
+                    row.put("itemName", m.getItemName());
+                    row.put("departmentId", m.getDepartmentId());
+                    row.put("departmentName", m.getDepartmentName());
+                    row.put("unitPrice", m.getUnitPrice());
+                    row.put("sortOrder", m.getSortOrder());
+                    row.put("enabled", m.getEnabled());
+                    return row;
+                })
+                .toList();
+    }
+
+    @Override
+    public Map<String, Object> createTestItem(Map<String, Object> request) {
+        Map<String, Object> payload = safePayload(request);
+        TestItemEntity entity = new TestItemEntity();
+        entity.setItemName(requireText(payload.get("itemName"), "检查项目名称不能为空"));
+        entity.setDepartmentId(longValue(payload.get("departmentId")));
+        entity.setDepartmentName(stringValue(payload.get("departmentName")));
+        entity.setUnitPrice(new BigDecimal(payload.get("unitPrice") != null ? payload.get("unitPrice").toString() : "0"));
+        entity.setEnabled(true);
+        entity.setSortOrder(intValue(payload.get("sortOrder"), 0));
+        entity.setRemark(stringValue(payload.get("remark")));
+        testItemMapper.insert(entity);
+        return testItemToRow(entity);
+    }
+
+    @Override
+    public Map<String, Object> updateTestItem(Long id, Map<String, Object> request) {
+        TestItemEntity entity = requireTestItem(id);
+        Map<String, Object> payload = safePayload(request);
+        if (payload.containsKey("itemName")) entity.setItemName(requireText(payload.get("itemName"), "检查项目名称不能为空"));
+        if (payload.containsKey("departmentId")) entity.setDepartmentId(longValue(payload.get("departmentId")));
+        if (payload.containsKey("departmentName")) entity.setDepartmentName(stringValue(payload.get("departmentName")));
+        if (payload.containsKey("unitPrice")) entity.setUnitPrice(new BigDecimal(payload.get("unitPrice").toString()));
+        if (payload.containsKey("sortOrder")) entity.setSortOrder(intValue(payload.get("sortOrder"), entity.getSortOrder()));
+        if (payload.containsKey("enabled")) entity.setEnabled(Boolean.TRUE.equals(payload.get("enabled")) || "true".equalsIgnoreCase(String.valueOf(payload.get("enabled"))));
+        if (payload.containsKey("remark")) entity.setRemark(stringValue(payload.get("remark")));
+        testItemMapper.updateById(entity);
+        return testItemToRow(entity);
+    }
+
+    @Override
+    public Map<String, Object> deleteTestItem(Long id) {
+        TestItemEntity entity = requireTestItem(id);
+        entity.setEnabled(false);
+        testItemMapper.updateById(entity);
+        return testItemToRow(entity);
+    }
+
+    private TestItemEntity requireTestItem(Long id) {
+        if (id == null) throw new IllegalArgumentException("检查项目不存在");
+        TestItemEntity entity = testItemMapper.selectById(id);
+        if (entity == null) throw new IllegalArgumentException("检查项目不存在");
+        return entity;
+    }
+
+    private Map<String, Object> testItemToRow(TestItemEntity entity) {
+        Map<String, Object> row = new LinkedHashMap<>();
+        row.put("id", entity.getId());
+        row.put("itemName", entity.getItemName());
+        row.put("departmentId", entity.getDepartmentId());
+        row.put("departmentName", entity.getDepartmentName());
+        row.put("unitPrice", entity.getUnitPrice());
+        row.put("sortOrder", entity.getSortOrder());
+        row.put("enabled", entity.getEnabled());
+        return row;
     }
 
     @Override
@@ -225,6 +408,20 @@ public class DatabaseClinicalService implements ClinicalService {
         entity.setDoctorId(requireId(payload.get("doctorId"), "医生ID不能为空"));
         entity.setDoctorName(requireText(payload.get("doctorName"), "医生姓名不能为空"));
         entity.setTestItem(requireText(payload.get("testItem"), "检查项目不能为空"));
+
+        String requestedTestItem = entity.getTestItem();
+        TestItemEntity testItem = testItemMapper.selectOne(new LambdaQueryWrapper<TestItemEntity>()
+                .eq(TestItemEntity::getItemName, requestedTestItem)
+                .eq(TestItemEntity::getEnabled, true));
+        if (testItem != null) {
+            entity.setUnitPrice(testItem.getUnitPrice());
+            entity.setDepartmentName(testItem.getDepartmentName());
+        } else if (payload.get("unitPrice") instanceof Number) {
+            entity.setUnitPrice(new BigDecimal(payload.get("unitPrice").toString()));
+        } else {
+            entity.setUnitPrice(BigDecimal.ZERO);
+        }
+
         entity.setTestReason(blankToNull(payload.get("testReason")));
         entity.setStatus("pending_audit");
         testRequestMapper.insert(entity);
@@ -291,12 +488,34 @@ public class DatabaseClinicalService implements ClinicalService {
         entity.setStatus(requireAuditResult(payload.get("auditResult")));
         entity.setAuditOpinion(blankToNull(payload.get("auditOpinion")));
         testRequestMapper.updateById(entity);
+
+        if ("approved".equals(entity.getStatus()) && entity.getUnitPrice() != null && entity.getUnitPrice().compareTo(BigDecimal.ZERO) > 0) {
+            try {
+                Map<String, Object> feePayload = new LinkedHashMap<>();
+                feePayload.put("patientId", entity.getPatientId());
+                feePayload.put("patientName", entity.getPatientName());
+                feePayload.put("businessType", "test_request");
+                feePayload.put("businessId", entity.getId());
+                feePayload.put("feeItemCode", "test_request_check");
+                feePayload.put("amount", entity.getUnitPrice());
+                restTemplate.postForEntity(
+                        "http://127.0.0.1:8107/fees",
+                        feePayload,
+                        String.class
+                );
+            } catch (Exception ignored) {
+            }
+        }
+
         return toTestRequestRow(entity);
     }
 
     @Override
     public Map<String, Object> payTestRequest(Long id) {
         TestRequestEntity entity = requireTestRequest(id);
+        if ("paid".equals(entity.getStatus()) || "finished".equals(entity.getStatus())) {
+            return toTestRequestRow(entity);
+        }
         if (!"approved".equals(entity.getStatus())) {
             throw new IllegalArgumentException("当前检查申请不是已审核状态，无法支付");
         }
@@ -363,6 +582,7 @@ public class DatabaseClinicalService implements ClinicalService {
         row.put("doctorName", entity.getDoctorName());
         row.put("medicineName", entity.getMedicineName());
         row.put("quantity", entity.getQuantity());
+        row.put("unitPrice", entity.getUnitPrice());
         row.put("usageText", entity.getUsageText());
         row.put("remark", entity.getRemark());
         row.put("status", entity.getStatus());
@@ -379,6 +599,8 @@ public class DatabaseClinicalService implements ClinicalService {
         row.put("doctorId", entity.getDoctorId());
         row.put("doctorName", entity.getDoctorName());
         row.put("testItem", entity.getTestItem());
+        row.put("unitPrice", entity.getUnitPrice());
+        row.put("departmentName", entity.getDepartmentName());
         row.put("testReason", entity.getTestReason());
         row.put("status", entity.getStatus());
         row.put("auditOpinion", entity.getAuditOpinion());
@@ -440,5 +662,21 @@ public class DatabaseClinicalService implements ClinicalService {
         if (value == null) return null;
         String text = value.toString().trim();
         return text.isEmpty() ? null : text;
+    }
+
+    private Long longValue(Object value) {
+        return optionalId(value);
+    }
+
+    private String stringValue(Object value) {
+        return blankToNull(value);
+    }
+
+    private Integer intValue(Object value, Integer defaultValue) {
+        if (value == null) return defaultValue;
+        if (value instanceof Number number) return number.intValue();
+        String text = blankToNull(value);
+        if (text == null) return defaultValue;
+        try { return Integer.parseInt(text); } catch (NumberFormatException ignored) { return defaultValue; }
     }
 }

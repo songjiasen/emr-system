@@ -16,6 +16,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -225,6 +226,63 @@ public class ClinicalController {
         TrustedUserContext context = TrustedUserContext.fromHeaders(userIdHeader, username, roleCode, tableName);
         ensureDoctorOwnedRow(context, clinicalService.getPrescription(id), "doctorId", "当前登录医生无权维护该处方");
         return ApiResponse.success(clinicalService.deletePrescription(id));
+    }
+
+    @PostMapping("/prescriptions/{id}/audit-result")
+    public ApiResponse<Map<String, Object>> updatePrescriptionAuditResult(
+            @PathVariable("id") Long id,
+            @RequestBody(required = false) Map<String, Object> request,
+            @RequestHeader(value = "X-User-Id", required = false) String userIdHeader,
+            @RequestHeader(value = "X-Username", required = false) String username,
+            @RequestHeader(value = "X-Role-Code", required = false) String roleCode,
+            @RequestHeader(value = "X-User-Table", required = false) String tableName
+    ) {
+        ensureAuditRole(TrustedUserContext.fromHeaders(userIdHeader, username, roleCode, tableName));
+        return ApiResponse.success(clinicalService.updatePrescriptionAuditResult(id, request));
+    }
+
+    @PostMapping("/prescriptions/{id}/pay")
+    public ApiResponse<Map<String, Object>> payPrescription(
+            @PathVariable("id") Long id,
+            @RequestHeader(value = "X-User-Id", required = false) String userIdHeader,
+            @RequestHeader(value = "X-Username", required = false) String username,
+            @RequestHeader(value = "X-Role-Code", required = false) String roleCode,
+            @RequestHeader(value = "X-User-Table", required = false) String tableName
+    ) {
+        TrustedUserContext context = TrustedUserContext.fromHeaders(userIdHeader, username, roleCode, tableName);
+        if (!context.isPatient()) {
+            throw new IllegalArgumentException("仅患者可支付处方");
+        }
+        Map<String, Object> row = clinicalService.getPrescription(id);
+        if (!(row.get("patientId") instanceof Number num) || !context.matchesUserId(num.longValue())) {
+            throw new IllegalArgumentException("当前登录患者无权支付该处方");
+        }
+        return ApiResponse.success(clinicalService.payPrescription(id));
+    }
+
+    @GetMapping("/medicines")
+    public ApiResponse<List<Map<String, Object>>> listMedicines() {
+        return ApiResponse.success(clinicalService.listMedicines());
+    }
+
+    @GetMapping("/test-items")
+    public ApiResponse<List<Map<String, Object>>> listTestItems() {
+        return ApiResponse.success(clinicalService.listTestItems());
+    }
+
+    @PostMapping("/test-items")
+    public ApiResponse<Map<String, Object>> createTestItem(@RequestBody(required = false) Map<String, Object> request) {
+        return ApiResponse.success(clinicalService.createTestItem(request));
+    }
+
+    @PutMapping("/test-items/{id}")
+    public ApiResponse<Map<String, Object>> updateTestItem(@PathVariable("id") Long id, @RequestBody(required = false) Map<String, Object> request) {
+        return ApiResponse.success(clinicalService.updateTestItem(id, request));
+    }
+
+    @DeleteMapping("/test-items/{id}")
+    public ApiResponse<Map<String, Object>> deleteTestItem(@PathVariable("id") Long id) {
+        return ApiResponse.success(clinicalService.deleteTestItem(id));
     }
 
     @PostMapping("/test-requests")

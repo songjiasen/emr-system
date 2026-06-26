@@ -69,7 +69,7 @@ public class DatabaseBillingService implements BillingService {
         entity.setBusinessId(resolveBusinessId(payload));
         entity.setFeeItemCode(feeItem.getItemCode());
         entity.setFeeItem(feeItem.getItemName());
-        entity.setAmount(normalizeAmount(feeItem.getAmount()));
+        entity.setAmount(overrideAmount(payload, feeItem));
         entity.setPayStatus("unpaid");
         entity.setPayTime(null);
         entity.setRemark(blankToNull(payload.get("remark")));
@@ -315,6 +315,13 @@ public class DatabaseBillingService implements BillingService {
             throw new IllegalArgumentException("费用金额不能为负数");
         }
         return amount.setScale(2, RoundingMode.HALF_UP);
+    }
+
+    private BigDecimal overrideAmount(Map<String, Object> payload, FeeItemEntity feeItem) {
+        if (payload.get("amount") instanceof Number num && num.doubleValue() > 0) {
+            return normalizeAmount(num);
+        }
+        return normalizeAmount(feeItem.getAmount());
     }
 
     private String blankToNull(Object value) {

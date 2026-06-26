@@ -174,9 +174,6 @@ public class SystemContentController {
         TrustedUserContext context = TrustedUserContext.fromHeaders(userIdHeader, username, roleCode, tableName);
         LambdaQueryWrapper<MessageEntity> wrapper = new LambdaQueryWrapper<MessageEntity>()
                 .orderByDesc(MessageEntity::getId);
-        if (context.isPatient()) {
-            wrapper.eq(MessageEntity::getUserId, context.userId());
-        }
         List<Map<String, Object>> rows = messageMapper.selectList(wrapper)
                 .stream()
                 .map(this::toMessageRow)

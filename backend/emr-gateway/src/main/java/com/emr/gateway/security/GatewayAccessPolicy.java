@@ -65,7 +65,7 @@ public class GatewayAccessPolicy {
         }
         if (pathStartsWith(path, "/medical-records")
                 || pathStartsWith(path, "/prescriptions")) {
-            return HttpMethod.GET.equals(method);
+            return HttpMethod.GET.equals(method) || (HttpMethod.POST.equals(method) && path.endsWith("/pay"));
         }
         if (pathStartsWith(path, "/test-requests")) {
             return HttpMethod.GET.equals(method) || (HttpMethod.POST.equals(method) && path.endsWith("/pay"));
@@ -73,10 +73,25 @@ public class GatewayAccessPolicy {
         if (pathStartsWith(path, "/fees")) {
             return HttpMethod.GET.equals(method) || HttpMethod.POST.equals(method);
         }
-        // 患者端只需要读取余额用于支付页展示；扣款仍由计费服务内部调用用户服务完成。
+        if (pathStartsWith(path, "/medicines")
+                || pathStartsWith(path, "/doctors")
+                || pathStartsWith(path, "/departments")
+                || pathStartsWith(path, "/carousels")
+                || pathStartsWith(path, "/news")
+                || pathStartsWith(path, "/test-items")) {
+            return HttpMethod.GET.equals(method);
+        }
+        if (pathStartsWith(path, "/messages")) {
+            return HttpMethod.GET.equals(method) || HttpMethod.POST.equals(method);
+        }
         if (pathStartsWith(path, "/user-management/patients")
-                && HttpMethod.GET.equals(method)
-                && path.endsWith("/balance")) {
+                && path.endsWith("/balance")
+                && HttpMethod.GET.equals(method)) {
+            return true;
+        }
+        if (pathStartsWith(path, "/user-management/patients")
+                && path.endsWith("/recharge")
+                && HttpMethod.POST.equals(method)) {
             return true;
         }
         return false;
@@ -89,7 +104,9 @@ public class GatewayAccessPolicy {
                 || pathStartsWith(path, "/medical-record-archives")
                 || pathStartsWith(path, "/medical-orders")
                 || pathStartsWith(path, "/prescriptions")
-                || pathStartsWith(path, "/test-requests");
+                || pathStartsWith(path, "/test-requests")
+                || pathStartsWith(path, "/medicines")
+                || pathStartsWith(path, "/test-items");
     }
 
     private boolean isNurseAllowed(HttpMethod method, String path) {
@@ -111,16 +128,21 @@ public class GatewayAccessPolicy {
 
     private boolean isDirectorAllowed(HttpMethod method, String path) {
         if (pathStartsWith(path, "/workflow")
-                || pathStartsWith(path, "/medical-record-archives")) {
+                || pathStartsWith(path, "/medical-record-archives")
+                || pathStartsWith(path, "/test-items")
+                || pathStartsWith(path, "/medicines")) {
             return true;
         }
         if (pathStartsWith(path, "/medical-records")) {
             return HttpMethod.GET.equals(method);
         }
-        if (pathStartsWith(path, "/medical-orders") || pathStartsWith(path, "/test-requests")) {
+        if (pathStartsWith(path, "/medical-orders") || pathStartsWith(path, "/test-requests") || pathStartsWith(path, "/prescriptions")) {
             return HttpMethod.GET.equals(method) || (HttpMethod.POST.equals(method) && path.endsWith("/audit-result"));
         }
-        return pathStartsWith(path, "/prescriptions") && HttpMethod.GET.equals(method);
+        if (pathStartsWith(path, "/departments")) {
+            return HttpMethod.GET.equals(method);
+        }
+        return false;
     }
 
     private boolean pathEquals(String path, String endpoint) {

@@ -22,6 +22,8 @@ public class TestRequestEntity {
     private Long doctorId;
     private String doctorName;
     private String testItem;
+    private java.math.BigDecimal unitPrice;
+    private String departmentName;
     private String testReason;
     private String status;
     private String auditOpinion;
@@ -45,6 +47,10 @@ public class TestRequestEntity {
     public void setDoctorName(String doctorName) { this.doctorName = doctorName; }
     public String getTestItem() { return testItem; }
     public void setTestItem(String testItem) { this.testItem = testItem; }
+    public java.math.BigDecimal getUnitPrice() { return unitPrice; }
+    public void setUnitPrice(java.math.BigDecimal unitPrice) { this.unitPrice = unitPrice; }
+    public String getDepartmentName() { return departmentName; }
+    public void setDepartmentName(String departmentName) { this.departmentName = departmentName; }
     public String getTestReason() { return testReason; }
     public void setTestReason(String testReason) { this.testReason = testReason; }
     public String getStatus() { return status; }

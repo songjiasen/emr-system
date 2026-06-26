@@ -153,7 +153,9 @@ public class DatabaseDoctorService implements DoctorService {
                 entity.getDepartmentId(),
                 entity.getDepartmentName(),
                 entity.getSpecialty(),
-                entity.getProfile()
+                entity.getProfile(),
+                entity.getAvatar(),
+                Boolean.TRUE.equals(entity.getIsFeatured())
         );
     }
 }

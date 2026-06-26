@@ -28,7 +28,7 @@ import java.util.UUID;
 public class DatabaseWorkflowService implements WorkflowService {
 
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMdd");
-    private static final Set<String> SUPPORTED_BUSINESS_TYPES = Set.of("medical_order", "test_request", "record_archive", "medical_record");
+    private static final Set<String> SUPPORTED_BUSINESS_TYPES = Set.of("medical_order", "test_request", "record_archive", "medical_record", "prescription");
     private static final Set<String> SUPPORTED_ASSIGNEE_ROLES = Set.of("director", "admin");
     private static final Set<String> SUPPORTED_AUDIT_RESULTS = Set.of("approved", "rejected");
 

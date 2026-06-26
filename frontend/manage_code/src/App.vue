@@ -262,6 +262,56 @@
                 </div>
               </el-form>
             </el-dialog>
+
+            <div v-if="isDirectorOrAdmin" class="panel" style="margin-top:16px">
+              <div class="panel-head">
+                <h3>检查项目管理</h3>
+                <div class="button-row">
+                  <el-button type="primary" @click="openTestItemDialog('create')">新增检查项目</el-button>
+                  <el-button @click="loadTestItems">刷新</el-button>
+                </div>
+              </div>
+              <el-table :data="testItems" height="260" @row-click="selectTestItem">
+                <el-table-column prop="itemName" label="项目名称" min-width="120" />
+                <el-table-column prop="departmentName" label="负责科室" width="100" />
+                <el-table-column prop="unitPrice" label="单价" width="80" />
+                <el-table-column label="操作" width="120">
+                  <template #default="{ row }">
+                    <el-button link type="primary" @click.stop="openTestItemDialog('edit', row)">编辑</el-button>
+                    <el-button link type="danger" @click.stop="selectTestItem(row); deleteTestItemAction()">禁用</el-button>
+                  </template>
+                </el-table-column>
+              </el-table>
+            </div>
+
+            <el-dialog v-model="adminDialogs.testItem" :title="testItemDialogMode === 'edit' ? '编辑检查项目' : '新增检查项目'" width="520px">
+              <el-form class="dialog-form" label-position="top" :model="testItemForm">
+                <el-form-item label="项目名称">
+                  <el-input v-model="testItemForm.itemName" />
+                </el-form-item>
+                <el-form-item label="负责科室">
+                  <el-select v-model="testItemForm.departmentId" filterable placeholder="选择科室" @change="onTestItemDeptChange">
+                    <el-option
+                      v-for="item in departments"
+                      :key="item.id"
+                      :label="item.name"
+                      :value="item.id"
+                    />
+                  </el-select>
+                </el-form-item>
+                <el-form-item label="单价 (元)">
+                  <el-input-number v-model="testItemForm.unitPrice" :precision="2" :min="0" style="width:100%" />
+                </el-form-item>
+                <el-form-item label="排序">
+                  <el-input-number v-model="testItemForm.sortOrder" :min="0" style="width:100%" />
+                </el-form-item>
+                <div class="dialog-footer">
+                  <el-button @click="adminDialogs.testItem = false">取消</el-button>
+                  <el-button v-if="testItemDialogMode === 'edit'" type="primary" @click="updateTestItemAction">保存修改</el-button>
+                  <el-button v-else type="primary" @click="createTestItemAction">确认新增</el-button>
+                </div>
+              </el-form>
+            </el-dialog>
           </section>
         </el-tab-pane>
 
@@ -348,7 +398,7 @@
                   <el-button type="primary" @click="openRecordDialog('create')">新增病历</el-button>
                   <el-button :disabled="!selectedRecord" @click="openRecordDialog('edit')">编辑病历</el-button>
                   <el-button :disabled="!selectedRecord" type="danger" plain @click="deleteRecordAction">删除病历</el-button>
-                  <el-button @click="createArchiveApplicationAction">申请归档</el-button>
+                  <el-button :disabled="!selectedRecord || selectedRecord.archiveStatus === 'pending' || selectedRecord.archiveStatus === 'archived'" @click="createArchiveApplicationAction">申请归档</el-button>
                   <el-button @click="loadRecords">刷新</el-button>
                 </div>
               </div>
@@ -375,6 +425,60 @@
                   <span v-else>-</span>
                 </el-descriptions-item>
               </el-descriptions>
+
+              <div v-if="selectedRecord" class="record-relations-panel" v-loading="loadingRecordRelations">
+                <h4 class="relations-title">本次就诊关联事项</h4>
+                <div class="relations-grid">
+                  <div class="relation-card">
+                    <div class="relation-card-header">
+                      <span class="relation-icon">🔬</span>
+                      <span>检查申请</span>
+                      <el-tag v-if="recordRelatedTests.length === 0" type="info" size="small">无</el-tag>
+                      <el-tag v-else-if="recordRelatedTests.every(t => t.status === 'finished')" type="success" size="small">全部完成</el-tag>
+                      <el-tag v-else type="warning" size="small">{{ recordRelatedTests.filter(t => t.status !== 'finished').length }} 项待处理</el-tag>
+                    </div>
+                    <div v-if="recordRelatedTests.length > 0" class="relation-items">
+                      <div v-for="item in recordRelatedTests" :key="item.id" class="relation-item">
+                        <span class="relation-item-name">{{ item.testItem || '-' }}</span>
+                        <el-tag :type="item.status === 'finished' ? 'success' : item.status === 'paid' ? 'primary' : 'warning'" size="small">{{ statusText(item.status) }}</el-tag>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="relation-card">
+                    <div class="relation-card-header">
+                      <span class="relation-icon">💊</span>
+                      <span>医嘱</span>
+                      <el-tag v-if="recordRelatedOrders.length === 0" type="info" size="small">无</el-tag>
+                      <el-tag v-else-if="recordRelatedOrders.every(o => o.status === 'executed')" type="success" size="small">全部执行</el-tag>
+                      <el-tag v-else type="warning" size="small">{{ recordRelatedOrders.filter(o => o.status !== 'executed').length }} 条待处理</el-tag>
+                    </div>
+                    <div v-if="recordRelatedOrders.length > 0" class="relation-items">
+                      <div v-for="item in recordRelatedOrders" :key="item.id" class="relation-item">
+                        <span class="relation-item-name">{{ item.content || '-' }}</span>
+                        <el-tag :type="item.status === 'executed' ? 'success' : 'warning'" size="small">{{ statusText(item.status) }}</el-tag>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="relation-card">
+                    <div class="relation-card-header">
+                      <span class="relation-icon">📋</span>
+                      <span>处方</span>
+                      <el-tag v-if="recordRelatedPrescriptions.length === 0" type="info" size="small">无</el-tag>
+                      <el-tag v-else-if="recordRelatedPrescriptions.every(p => p.status === 'paid' || p.status === 'dispensed')" type="success" size="small">全部就绪</el-tag>
+                      <el-tag v-else type="warning" size="small">{{ recordRelatedPrescriptions.filter(p => p.status !== 'paid' && p.status !== 'dispensed').length }} 张待处理</el-tag>
+                    </div>
+                    <div v-if="recordRelatedPrescriptions.length > 0" class="relation-items">
+                      <div v-for="item in recordRelatedPrescriptions" :key="item.id" class="relation-item">
+                        <span class="relation-item-name">{{ item.medicineName || '-' }}</span>
+                        <el-tag :type="item.status === 'paid' || item.status === 'dispensed' ? 'success' : 'warning'" size="small">{{ statusText(item.status) }}</el-tag>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div v-if="selectedRecord.archiveStatus === 'archived'" class="archive-complete-tip">
+                  <el-tag type="success" effect="dark">📁 已归档</el-tag>
+                </div>
+              </div>
             </div>
 
             <el-dialog v-model="adminDialogs.record" :title="recordDialogMode === 'edit' ? '编辑病历' : '新增病历'" width="620px">
@@ -675,8 +779,9 @@
                 <el-table-column prop="status" label="状态" width="100" :formatter="statusFormatter" />
                 <el-table-column label="操作" width="150">
                   <template #default="{ row }">
-                    <el-button v-if="row.status === 'pending_audit'" link type="primary" @click.stop="openPrescriptionDialog('edit', row)">编辑</el-button>
-                    <el-button v-if="row.status === 'pending_audit'" link type="danger" @click.stop="selectPrescription(row); deletePrescriptionAction()">删除</el-button>
+                    <el-button v-if="adminSession.roleCode === 'director' && row.status === 'pending_audit'" link type="primary" @click="auditPrescriptionAction(row)">审核</el-button>
+                    <el-button v-if="row.status === 'pending_audit' && adminSession.roleCode !== 'director'" link type="primary" @click.stop="openPrescriptionDialog('edit', row)">编辑</el-button>
+                    <el-button v-if="row.status === 'pending_audit' && adminSession.roleCode !== 'director'" link type="danger" @click.stop="selectPrescription(row); deletePrescriptionAction()">删除</el-button>
                   </template>
                 </el-table-column>
               </el-table>
@@ -709,10 +814,20 @@
                   <el-input v-model="prescriptionForm.doctorName" disabled />
                 </el-form-item>
                 <el-form-item label="药品名称">
-                  <el-input v-model="prescriptionForm.medicineName" />
+                  <el-select v-model="prescriptionForm.medicineName" filterable placeholder="选择药品" @change="onPrescriptionMedicineChange">
+                    <el-option
+                      v-for="item in medicines"
+                      :key="item.id"
+                      :label="`${item.medicineName} (${item.specification || '-'} / ${item.unit}) ¥${item.unitPrice}`"
+                      :value="item.medicineName"
+                    />
+                  </el-select>
                 </el-form-item>
                 <el-form-item label="数量">
                   <el-input-number v-model="prescriptionForm.quantity" :min="1" />
+                </el-form-item>
+                <el-form-item label="单价 (元)">
+                  <el-input-number v-model="prescriptionForm.unitPrice" :precision="2" :min="0" disabled />
                 </el-form-item>
                 <div class="dialog-footer">
                   <el-button @click="adminDialogs.prescription = false">取消</el-button>
@@ -776,7 +891,20 @@
                   <el-input v-model="testRequestForm.doctorName" disabled />
                 </el-form-item>
                 <el-form-item label="检查项目">
-                  <el-input v-model="testRequestForm.testItem" />
+                  <el-select v-model="testRequestForm.testItem" filterable placeholder="选择检查项目" @change="onTestItemChange">
+                    <el-option
+                      v-for="item in testItems"
+                      :key="item.id"
+                      :label="`${item.itemName}（${item.departmentName || '未指定科室'}） ¥${item.unitPrice}`"
+                      :value="item.itemName"
+                    />
+                  </el-select>
+                </el-form-item>
+                <el-form-item label="单价 (元)">
+                  <el-input-number v-model="testRequestForm.unitPrice" :precision="2" :min="0" disabled />
+                </el-form-item>
+                <el-form-item label="负责科室">
+                  <el-input v-model="testRequestForm.departmentName" disabled placeholder="选择检查项目后自动填入" />
                 </el-form-item>
                 <el-form-item label="检查原因">
                   <el-input v-model="testRequestForm.testReason" />
@@ -894,7 +1022,8 @@
                 <el-table-column prop="status" label="状态" width="100" :formatter="statusFormatter" />
                 <el-table-column label="操作" width="100">
                   <template #default="{ row }">
-                    <el-button link type="primary" @click="auditArchiveAction(row)">归档</el-button>
+                    <el-button v-if="adminSession.roleCode === 'director' && row.status === 'pending'" link type="primary" @click="auditArchiveAction(row)">归档</el-button>
+                    <el-button v-else-if="adminSession.roleCode === 'director' && row.status === 'approved'" link type="info" disabled>已归档</el-button>
                   </template>
                 </el-table-column>
               </el-table>
@@ -1351,7 +1480,7 @@ import { createManagedUser, fetchManagedUsers, updateManagedUser, deleteManagedU
 import { fetchDoctors as fetchPublicDoctors } from './api/doctor';
 import { createTriageRecord, fetchTriageRecords, createAdmission, fetchAdmissions, dischargeAdmission, fetchDischarges } from './api/inpatient';
 import { createMedicalRecord, fetchMedicalRecords, fetchMedicalRecordDetail, updateMedicalRecord, deleteMedicalRecord, createMedicalRecordTemplate, fetchMedicalRecordTemplates, updateMedicalRecordTemplate, deleteMedicalRecordTemplate, createArchiveApplication, fetchArchiveApplications, auditArchiveApplication, fetchArchives } from './api/medicalRecord';
-import { createMedicalOrder, fetchMedicalOrders, updateMedicalOrder, deleteMedicalOrder, updateMedicalOrderAuditResult, executeMedicalOrder, createPrescription, fetchPrescriptions, updatePrescription, deletePrescription, createTestRequest, fetchTestRequests, updateTestAuditResult, updateTestRequest, deleteTestRequest } from './api/clinical';
+import { createMedicalOrder, fetchMedicalOrders, updateMedicalOrder, deleteMedicalOrder, updateMedicalOrderAuditResult, executeMedicalOrder, createPrescription, fetchPrescriptions, updatePrescription, deletePrescription, auditPrescriptionResult, fetchMedicines, fetchTestItems, createTestItem, updateTestItem, deleteTestItem, createTestRequest, fetchTestRequests, updateTestAuditResult, updateTestRequest, deleteTestRequest } from './api/clinical';
 import { createWorkflowTask, fetchWorkflowTasks, auditWorkflowTask, fetchAuditRecords } from './api/workflow';
 import { createFee, fetchFeeItems, fetchFees, payFee } from './api/billing';
 import { createNews, fetchNews, fetchMessages, replyMessage, createCarousel, fetchCarousels, deleteCarousel, saveConfig, saveMenu, fetchMenu, fetchSyslogs } from './api/system';
@@ -1382,6 +1511,10 @@ const selectedDepartment = ref(null);
 const selectedUser = ref(null);
 const selectedRecord = ref(null);
 const selectedRecordDetail = ref(null);
+const recordRelatedOrders = ref([]);
+const recordRelatedTests = ref([]);
+const recordRelatedPrescriptions = ref([]);
+const loadingRecordRelations = ref(false);
 const selectedAdmission = ref(null);
 const selectedTemplate = ref(null);
 const selectedOrder = ref(null);
@@ -1398,7 +1531,7 @@ const adminDialogs = reactive({
   order: false,
   prescription: false,
   testRequest: false,
-  workflow: false,
+  testItem: false,  workflow: false,
   fee: false,
   news: false,
   carousel: false,
@@ -1425,7 +1558,12 @@ const discharges = ref([]);
 const templates = ref([]);
 const orders = ref([]);
 const prescriptions = ref([]);
+const medicines = ref([]);
 const testRequests = ref([]);
+const testItems = ref([]);
+const selectedTestItem = ref(null);
+const testItemDialogMode = ref('create');
+const testItemForm = ref(makeDefaultTestItemForm());
 const workflowTasks = ref([]);
 const workflowAuditRecords = ref([]);
 const archiveApplications = ref([]);
@@ -1539,11 +1677,15 @@ function makeDefaultOrderForm() {
 }
 
 function makeDefaultPrescriptionForm() {
-  return { recordId: 1, patientId: 1, patientName: '患者演示', doctorId: 1, doctorName: '王医生', medicineName: '硝苯地平控释片', quantity: 7, usageText: '每日一次' };
+  return { recordId: 1, patientId: 1, patientName: '患者演示', doctorId: 1, doctorName: '王医生', medicineName: '硝苯地平控释片', quantity: 7, unitPrice: 32.50, usageText: '每日一次' };
 }
 
 function makeDefaultTestRequestForm() {
-  return { recordId: 1, patientId: 1, patientName: '患者演示', doctorId: 1, doctorName: '王医生', testItem: '血常规', testReason: '评估基础指标', resultContent: '', status: 'pending_audit' };
+  return { recordId: 1, patientId: 1, patientName: '患者演示', doctorId: 1, doctorName: '王医生', testItem: '血常规', unitPrice: 0, testReason: '评估基础指标', resultContent: '', status: 'pending_audit' };
+}
+
+function makeDefaultTestItemForm() {
+  return { itemName: '', departmentId: null, departmentName: '', unitPrice: 0, sortOrder: 0 };
 }
 
 function makeDefaultWorkflowForm() {
@@ -1589,8 +1731,11 @@ function syncFeeItemToForm(itemCode = feeForm.value.feeItemCode) {
 }
 
 function applyDefaultFeeItemToForm() {
-  if (!feeForm.value.feeItemCode && feeItems.value.length > 0) {
-    feeForm.value.feeItemCode = feeItems.value[0].itemCode;
+  if (!feeForm.value.feeItemCode) {
+    const first = Array.isArray(feeItems.value) ? feeItems.value.find(() => true) : null;
+    if (first) {
+      feeForm.value.feeItemCode = first.itemCode;
+    }
   }
   syncFeeItemToForm();
 }
@@ -1748,10 +1893,12 @@ function resetAllPagers() {
 const STATUS_TEXT = {
   pending: '待确认',
   pending_audit: '待审核',
+  created: '已创建',
   confirmed: '已确认',
   approved: '已通过',
   rejected: '已驳回',
   executed: '已执行',
+  dispensed: '已发药',
   finished: '已完成',
   not_submitted: '未提交',
   archived: '已归档',
@@ -1805,11 +1952,11 @@ function resolveAdminTab(tabName) {
 
 function findAdminNavItem(tabName) {
   const items = navItems.value;
-  if (!items || items.length === 0) {
+  if (!Array.isArray(items) || items.length === 0) {
     return null;
   }
   const safeTab = resolveAdminTab(tabName);
-  return items.find((item) => item.name === safeTab) || items[0];
+  return items.find((item) => item?.name === safeTab) || null;
 }
 
 function goToAdminTab(tabName) {
@@ -2207,6 +2354,7 @@ function openOrderDialog(mode, row = null) {
 
 function openPrescriptionDialog(mode, row = null) {
   loadRecords();
+  loadMedicines();
   prescriptionDialogMode.value = mode;
   if (mode === 'edit') {
     if (row) {
@@ -2225,6 +2373,7 @@ function openPrescriptionDialog(mode, row = null) {
 
 function openTestRequestDialog(mode, row = null) {
   loadRecords();
+  loadTestItems();
   testRequestDialogMode.value = mode;
   if (mode === 'edit') {
     if (row) {
@@ -2625,6 +2774,7 @@ function selectRecord(row) {
     fileUrl: row?.fileUrl || ''
   };
   loadRecordDetail(row.id);
+  loadRecordRelations(row.id);
 }
 
 async function loadRecordDetail(id) {
@@ -2638,6 +2788,47 @@ async function loadRecordDetail(id) {
   } catch (error) {
     showError(error);
   }
+}
+
+async function loadRecordRelations(recordId) {
+  if (!recordId) {
+    recordRelatedOrders.value = [];
+    recordRelatedTests.value = [];
+    recordRelatedPrescriptions.value = [];
+    return;
+  }
+
+  loadingRecordRelations.value = true;
+  try {
+    const results = await Promise.allSettled([
+      fetchMedicalOrders({ recordId, limit: 100 }),
+      fetchTestRequests({ recordId, limit: 100 }),
+      fetchPrescriptions({ recordId, limit: 100 })
+    ]);
+    recordRelatedOrders.value = results[0].status === 'fulfilled' ? rowsOf(unwrap(results[0].value)) : [];
+    recordRelatedTests.value = results[1].status === 'fulfilled' ? rowsOf(unwrap(results[1].value)) : [];
+    recordRelatedPrescriptions.value = results[2].status === 'fulfilled' ? rowsOf(unwrap(results[2].value)) : [];
+  } catch (error) {
+    recordRelatedOrders.value = [];
+    recordRelatedTests.value = [];
+    recordRelatedPrescriptions.value = [];
+  } finally {
+    loadingRecordRelations.value = false;
+  }
+}
+
+function hasUnfinishedRelations() {
+  const unfinishedTests = recordRelatedTests.value.filter((item) => item.status !== 'finished');
+  const unfinishedOrders = recordRelatedOrders.value.filter((item) => item.status !== 'executed');
+  const unfinishedPrescriptions = recordRelatedPrescriptions.value.filter((item) => item.status !== 'paid' && item.status !== 'dispensed');
+  return {
+    tests: unfinishedTests,
+    orders: unfinishedOrders,
+    prescriptions: unfinishedPrescriptions,
+    get any() {
+      return this.tests.length > 0 || this.orders.length > 0 || this.prescriptions.length > 0;
+    }
+  };
 }
 
 async function updateRecordAction() {
@@ -2679,10 +2870,27 @@ async function deleteRecordAction() {
 
 /**
  * 归档申请依赖已选病历，缺失时直接提示，避免提交无业务关联的审核单。
+ * 提交前校验关联的检查/医嘱/处方是否全部完成，未完成则阻止归档并列出待处理项。
  */
 async function createArchiveApplicationAction() {
   if (!selectedRecord.value) {
     ElMessage.warning('请先选择一条病历');
+    return;
+  }
+
+  const unfinished = hasUnfinishedRelations();
+  if (unfinished.any) {
+    const parts = [];
+    if (unfinished.tests.length > 0) {
+      parts.push(`${unfinished.tests.length} 项检查未完成`);
+    }
+    if (unfinished.orders.length > 0) {
+      parts.push(`${unfinished.orders.length} 条医嘱未执行`);
+    }
+    if (unfinished.prescriptions.length > 0) {
+      parts.push(`${unfinished.prescriptions.length} 张处方未处理`);
+    }
+    ElMessage.warning(`该病历下还有 ${parts.join('、')}，请先处理完毕后再提交归档`);
     return;
   }
 
@@ -2696,6 +2904,9 @@ async function createArchiveApplicationAction() {
       doctorName: selectedRecord.value.doctorName
     });
     await loadArchiveApplications();
+    await loadRecords();
+    selectedRecord.value = null;
+    selectedRecordDetail.value = null;
     ElMessage.success('归档申请已提交');
   } catch (error) {
     showError(error);
@@ -2817,6 +3028,21 @@ async function loadPrescriptions() {
   }
 }
 
+async function loadMedicines() {
+  try {
+    medicines.value = unwrap(await fetchMedicines()) || [];
+  } catch (error) {
+    showError(error);
+  }
+}
+
+function onPrescriptionMedicineChange(medicineName) {
+  const selected = Array.isArray(medicines.value) ? medicines.value.find((m) => m.medicineName === medicineName) : null;
+  if (selected) {
+    prescriptionForm.value.unitPrice = selected.unitPrice || 0;
+  }
+}
+
 function selectPrescription(row) {
   selectedPrescription.value = row;
   prescriptionForm.value = {
@@ -2858,6 +3084,19 @@ async function deletePrescriptionAction() {
     await loadPrescriptions();
     selectedPrescription.value = null;
     ElMessage.success('处方已删除');
+  } catch (error) {
+    showError(error);
+  }
+}
+
+async function auditPrescriptionAction(row) {
+  try {
+    await auditPrescriptionResult(row.id, {
+      auditResult: 'approved',
+      auditOpinion: '审核通过'
+    });
+    await loadPrescriptions();
+    ElMessage.success('处方审核已通过');
   } catch (error) {
     showError(error);
   }
@@ -2942,6 +3181,81 @@ async function auditTestAction(row) {
   }
 }
 
+async function loadTestItems() {
+  try {
+    testItems.value = unwrap(await fetchTestItems()) || [];
+  } catch (error) {
+    showError(error);
+  }
+}
+
+function onTestItemChange(itemName) {
+  const selected = Array.isArray(testItems.value) ? testItems.value.find((m) => m.itemName === itemName) : null;
+  if (selected) {
+    testRequestForm.value.unitPrice = selected.unitPrice || 0;
+    testRequestForm.value.departmentName = selected.departmentName || '';
+  }
+}
+
+function onTestItemDeptChange(deptId) {
+  const dept = departments.value.find((d) => d.id === deptId);
+  testItemForm.value.departmentName = dept ? dept.name : '';
+}
+
+function openTestItemDialog(mode, row = null) {
+  loadTestItems();
+  loadDepartments();
+  testItemDialogMode.value = mode;
+  if (mode === 'edit' && row) {
+    testItemForm.value = {
+      itemName: row.itemName || '',
+      departmentId: row.departmentId || null,
+      departmentName: row.departmentName || '',
+      unitPrice: row.unitPrice || 0,
+      sortOrder: row.sortOrder || 0
+    };
+  } else {
+    testItemForm.value = makeDefaultTestItemForm();
+  }
+  adminDialogs.testItem = true;
+}
+
+async function createTestItemAction() {
+  try {
+    await createTestItem(testItemForm.value);
+    adminDialogs.testItem = false;
+    await loadTestItems();
+    ElMessage.success('检查项目已添加');
+  } catch (error) {
+    showError(error);
+  }
+}
+
+async function updateTestItemAction() {
+  try {
+    await updateTestItem(selectedTestItem.value.id, testItemForm.value);
+    adminDialogs.testItem = false;
+    await loadTestItems();
+    ElMessage.success('检查项目已更新');
+  } catch (error) {
+    showError(error);
+  }
+}
+
+async function deleteTestItemAction() {
+  if (!selectedTestItem.value?.id) {
+    ElMessage.warning('请先选择一个检查项目');
+    return;
+  }
+  try {
+    await deleteTestItem(selectedTestItem.value.id);
+    await loadTestItems();
+    ElMessage.success('检查项目已禁用');
+  } catch (error) {
+    showError(error);
+  }
+}
+
 async function createWorkflowTaskAction() {
   try {
     await createWorkflowTask(workflowForm.value);
@@ -3012,8 +3326,8 @@ async function auditArchiveAction(row) {
   try {
     await auditArchiveApplication(row.id, {
       auditResult: 'approved',
-      auditUserId: 1,
-      auditUserName: '主任演示',
+      auditUserId: adminSession.value.userId || 4,
+      auditUserName: adminSession.value.realName || adminSession.value.username || '主任',
       auditOpinion: '同意归档',
       archiveContent: '病历归档完成'
     });
@@ -3240,7 +3554,8 @@ async function runSmartSearchAction() {
 }
 
 function replaceRow(rows, row) {
-  const index = rows.findIndex((item) => item.id === row.id);
+  if (!Array.isArray(rows)) return;
+  const index = rows.findIndex((item) => item?.id === row?.id);
   if (index >= 0) {
     rows[index] = row;
   };
@@ -3707,6 +4022,76 @@ h3 {
 
 .menu-preview {
   margin-top: 12px;
+}
+
+.record-relations-panel {
+  margin-top: 16px;
+  padding: 16px;
+  background: #f8fafc;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+}
+
+.relations-title {
+  margin: 0 0 12px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #334155;
+}
+
+.relations-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 12px;
+}
+
+.relation-card {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  padding: 12px;
+}
+
+.relation-card-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #475569;
+  margin-bottom: 8px;
+}
+
+.relation-icon {
+  font-size: 16px;
+}
+
+.relation-items {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.relation-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 0;
+  border-bottom: 1px dashed #f1f5f9;
+}
+
+.relation-item:last-child {
+  border-bottom: none;
+}
+
+.relation-item-name {
+  font-size: 13px;
+  color: #64748b;
+}
+
+.archive-complete-tip {
+  margin-top: 12px;
+  text-align: right;
 }
 
 .dialog-form {

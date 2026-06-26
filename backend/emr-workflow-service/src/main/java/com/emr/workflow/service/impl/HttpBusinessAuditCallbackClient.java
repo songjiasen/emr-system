@@ -56,6 +56,7 @@ public class HttpBusinessAuditCallbackClient implements BusinessAuditCallbackCli
         return switch (businessType) {
             case "medical_order" -> clinicalBaseUrl + "/medical-orders/" + businessId + "/audit-result";
             case "test_request" -> clinicalBaseUrl + "/test-requests/" + businessId + "/audit-result";
+            case "prescription" -> clinicalBaseUrl + "/prescriptions/" + businessId + "/audit-result";
             case "record_archive" -> recordBaseUrl + "/medical-record-archives/applications/" + businessId + "/audit";
             case "medical_record" -> null;
             default -> throw new IllegalArgumentException("暂不支持的业务类型");

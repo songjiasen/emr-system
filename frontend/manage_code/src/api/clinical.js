@@ -40,6 +40,30 @@ export function deletePrescription(id) {
   return request.delete(`/prescriptions/${id}`);
 }
 
+export function auditPrescriptionResult(id, data) {
+  return request.post(`/prescriptions/${id}/audit-result`, data);
+}
+
+export function fetchMedicines() {
+  return request.get('/medicines');
+}
+
+export function fetchTestItems() {
+  return request.get('/test-items');
+}
+
+export function createTestItem(data) {
+  return request.post('/test-items', data);
+}
+
+export function updateTestItem(id, data) {
+  return request.put(`/test-items/${id}`, data);
+}
+
+export function deleteTestItem(id) {
+  return request.delete(`/test-items/${id}`);
+}
+
 export function createTestRequest(data) {
   return request.post('/test-requests', data);
 }
